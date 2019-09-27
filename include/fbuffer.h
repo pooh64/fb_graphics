@@ -1,25 +1,16 @@
-#pragma once
+#pragma once 
 
 #include <cstdint>
 #include <cstdio>
+#include <algorithm>
+
+#include <include/vector_space.h>
 
 extern "C"
 {
 	#include <linux/fb.h>
 	#include <stdint.h>
 }
-
-struct vector2d {
-	double x, y;
-	vector2d(double _x, double _y) : x(_x), y(_y) { }
-	vector2d operator*(double m) const { return vector2d(x * m, y * m); }
-
-	void print() { std::printf("(%lg, %lg)\n", x, y); }
-};
-
-struct vector3d {
-	double x, y, z;
-};
 
 struct fbuffer : public fb_var_screeninfo, public fb_fix_screeninfo {
 	struct color {
@@ -28,6 +19,9 @@ struct fbuffer : public fb_var_screeninfo, public fb_fix_screeninfo {
 
 	struct vector {
 		std::uint32_t x, y;
+		vector(std::uint32_t _x, std::uint32_t _y) : x(_x), y(_y) { }
+		vector() = default;
+		void print() { printf("(%ld, %ld)\n", long(x), long(y)); }
 	};
 
 	color *buf;
@@ -39,34 +33,44 @@ struct fbuffer : public fb_var_screeninfo, public fb_fix_screeninfo {
 
 	void fill(color c);
 
-	vector2d transform(vector2d vec);
+	vector transform(vector2d vec);
 	void draw_line(vector2d beg, vector2d end, color c);
 
 private:
 	int fd;
 };
 
-inline vector2d fbuffer::transform(vector2d vec)
+inline fbuffer::vector fbuffer::transform(vector2d vec)
 {
-	return vector2d((-1) * vec.x * xres + (double) xres / 2,
-			(-1) * vec.y * xres + (double) yres / 2);
+	return vector((-vec.x * yres + (double) xres + 1) / 2,
+		      (-vec.y * yres + (double) yres + 1) / 2);
 }
 
-inline void fbuffer::draw_line(vector2d beg, vector2d end, color c)
+inline void fbuffer::draw_line(vector2d _beg, vector2d _end, color c)
 {
-	beg = transform(beg);
-	end = transform(end);
+	fbuffer::vector beg = fbuffer::transform(_beg);
+	fbuffer::vector end = fbuffer::transform(_end);
+	fbuffer::vector vec;
 
-	if (end.x < beg.x) {
-		vector2d tmp = beg;
-		beg = end;
-		end = tmp;
+	if (beg.x == end.x) {
+		if (beg.y > end.y)
+			std::swap(end, beg);
+
+		vec.x = beg.x;
+		for (vec.y = beg.y; vec.y <= end.y; vec.y++)
+			(*this)(vec.x, vec.y) = c;
+		return;
 	}
 
-	double k = (end.y - beg.y) / (end.x - beg.x);
+	if (beg.x > end.x)
+		std::swap(end, beg);
 
-	for (std::uint32_t x = beg.x + 1/2; x < end.x + 1/2; x++)
-		(*this)(x, beg.y + k * ((double) x - beg.x) + 1/2) = c;
+	double k = (double) (end.y - beg.y) / (end.x - beg.x);
+
+	for (vec.x = beg.x; vec.x <= end.x; vec.x++) {
+		vec.y = beg.y + k * ((double) vec.x - beg.x) + 1/2;
+		(*this)(vec.x, vec.y) = c;
+	}
 }
 
 inline fbuffer::color &fbuffer::operator()(std::uint32_t x, std::uint32_t y)

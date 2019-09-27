@@ -1,4 +1,4 @@
-#include "include/fbuffer.h"
+#include <include/fbuffer.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cerrno>
@@ -15,7 +15,17 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	fb.draw_line(vector2d(-0.2, -0.2), vector2d(0.2, 0.2), col);
+	double a = 0.5;
+
+	vector2d v1(-a, -a);
+	vector2d v2( a, -a);
+	vector2d v3( a,  a);
+	vector2d v4(-a,  a);
+
+	fb.draw_line(v1, v2, col);
+	fb.draw_line(v2, v3, col);
+	fb.draw_line(v3, v4, col);
+	fb.draw_line(v4, v1, col);
 
 	if (fb.destroy() < 0) {
 		std::perror("fb.close");
