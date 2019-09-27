@@ -1,3 +1,3 @@
 example := lines
 
-include ../example.mk
+include ../template.mk

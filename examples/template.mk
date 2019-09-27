@@ -2,20 +2,20 @@ all: $(example)
 
 include ../../general.mk
 
-example_src := $(wildcard *.c)
-example_obj := $(example_src:.c=.o)
+example_src := $(wildcard *.cpp)
+example_obj := $(example_src:.cpp=.o)
 example_dep := $(example_obj:.o=.d)
 
 -include $(example_dep)
 
-%.d: %.c
-	$(CC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
+%.d: %.cpp
+	$(CXX) $(CPPFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
-%.o: %.c
-	$(CC) -c $(CFLAGS) $< -o $@
+%.o: %.cpp
+	$(CXX) -c $(CPPFLAGS) $< -o $@
 
 $(example): $(example_obj) $(lib_obj)
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CXX) -o $@ $^ $(LDFLAGS)
 
 .PHONY: clean
 clean:
