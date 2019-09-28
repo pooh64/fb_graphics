@@ -23,11 +23,9 @@ int fbuffer::init(const char *path)
 	if (::ioctl(fd, FBIOGET_FSCREENINFO, (fb_fix_screeninfo*) this) < 0)
 		goto handle_err_1;
 
-	map_region = ::mmap(NULL, xres * yres * sizeof(*buf),
-			    PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (map_region == MAP_FAILED)
+	buf = static_cast<color*>(std::calloc(xres * yres, sizeof(color)));
+	if (buf == NULL)
 		goto handle_err_1;
-	buf = static_cast<color*>(map_region);
 
 	return 0;
 
@@ -39,10 +37,13 @@ handle_err_0:
 
 int fbuffer::destroy()
 {
-	int rc = 0;
-	if (::munmap(buf, xres * yres * sizeof(*buf)) < 0)
-		rc = -1;
+	free(buf);
 	if (::close(fd) < 0)
-		rc = -1;
-	return rc;
+		return -1;
+	return 0;
+}
+
+int fbuffer::update()
+{
+	return ::pwrite(fd, buf, xres * yres * sizeof(color), 0);
 }
