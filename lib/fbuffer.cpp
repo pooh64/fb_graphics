@@ -38,12 +38,11 @@ handle_err_0:
 int fbuffer::destroy()
 {
 	free(buf);
-	if (::close(fd) < 0)
-		return -1;
-	return 0;
+	return ::close(fd);
 }
 
 int fbuffer::update()
 {
-	return ::pwrite(fd, buf, xres * yres * sizeof(color), 0);
+	int rc = ::pwrite(fd, buf, xres * yres * sizeof(color), 0);
+	return rc < 0 ? rc : 0;
 }

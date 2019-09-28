@@ -19,9 +19,6 @@ struct fbuffer : public fb_var_screeninfo, public fb_fix_screeninfo {
 
 	struct vector {
 		std::uint32_t x, y;
-		vector(std::uint32_t _x, std::uint32_t _y) : x(_x), y(_y) { }
-		vector() = default;
-		void print() { printf("(%ld, %ld)\n", long(x), long(y)); }
 	};
 
 	color *buf;
@@ -44,8 +41,8 @@ private:
 
 inline fbuffer::vector fbuffer::transform(vector2d vec)
 {
-	return vector((-vec.x * yres + (double) xres + 1) / 2,
-		      (-vec.y * yres + (double) yres + 1) / 2);
+	return vector{std::uint32_t((-vec.x * yres + (double) xres + 1) / 2),
+		      std::uint32_t((-vec.y * yres + (double) yres + 1) / 2)};
 }
 
 inline void fbuffer::draw_line(vector2d _beg, vector2d _end, fbuffer::color c)
@@ -98,5 +95,3 @@ inline void fbuffer::fill(fbuffer::color c)
 	for (std::size_t i = 0; i < xres * yres; i++)
 		buf[i] = c;
 }
-
-

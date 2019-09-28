@@ -7,8 +7,6 @@ int main()
 {
 	int rc;
 	fbuffer fb;
-	fbuffer::color col = {0};
-	col.g = 255;
 
 	if (fb.init("/dev/fb0") < 0) {
 		std::perror("fb.init");
@@ -16,16 +14,17 @@ int main()
 	}
 
 	double a = 0.5;
+	vector2d arr[5];
 
-	vector2d v1(-a, -a);
-	vector2d v2( a, -a);
-	vector2d v3( a,  a);
-	vector2d v4(-a,  a);
+	arr[0] = vector2d{-a, -a};
+	arr[1] = vector2d{ a, -a};
+	arr[2] = vector2d{ a,  a};
+	arr[3] = vector2d{-a,  a};
+	arr[4] = arr[0];
 
-	fb.draw_line(v1, v2, col);
-	fb.draw_line(v2, v3, col);
-	fb.draw_line(v3, v4, col);
-	fb.draw_line(v4, v1, col);
+	fb.fill(fbuffer::color{0, 0, 0, 0});
+	fb.draw_line_strip(arr, 5, fbuffer::color{0, 255, 0, 0});
+	fb.update();
 
 	if (fb.destroy() < 0) {
 		std::perror("fb.close");
