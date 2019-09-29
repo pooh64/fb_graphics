@@ -77,8 +77,8 @@ int main()
 			vector3d d_angle{rotate_scale * std::int8_t(ev.dy),
 					 rotate_scale * std::int8_t(ev.dx), 0};
 			cube.rotate(d_angle);
-			fb.fill(fbuffer::color(0, 0, 0, 0));
-			cube.draw(fb, fbuffer::color(0, 255, 0, 0));
+			fb.fill(fbuffer::color{0, 0, 0, });
+			cube.draw(fb, fbuffer::color{0, 255, 0, 0});
 			fb.update();
 		}
 		usleep(1000L * 1000L / 60);
