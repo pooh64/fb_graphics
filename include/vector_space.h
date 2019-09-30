@@ -64,10 +64,9 @@ inline double lenght(vector3d const &v)
 
 inline vector3d operator*(matrix3d const &m, vector3d const &vec)
 {
-	vector3d     ret{m[0][0] * vec.x + m[0][1] * vec.y + m[0][2] * vec.z,
-			 m[1][0] * vec.x + m[1][1] * vec.y + m[1][2] * vec.z,
-			 m[2][0] * vec.x + m[2][1] * vec.y + m[2][2] * vec.z};
-	std::printf("%lg->%lg\n", lenght(vec), lenght(ret));
+	vector3d ret{ m[0][0] * vec.x + m[0][1] * vec.y + m[0][2] * vec.z,
+		      m[1][0] * vec.x + m[1][1] * vec.y + m[1][2] * vec.z,
+		      m[2][0] * vec.x + m[2][1] * vec.y + m[2][2] * vec.z };
 	return ret;
 }
 
@@ -76,7 +75,7 @@ inline vector2d direct_proj(vector3d const &vec)
 	return vector2d{vec.x, vec.y};
 }
 
-inline matrix3d rotation_matrix3d(vector3d ang)
+inline matrix3d rotation_matrix3d_euler(vector3d ang)
 {
 	double c[3] = { std::cos(ang.x), std::cos(ang.y), std::cos(ang.z) };
 	double s[3] = { std::sin(ang.x), std::sin(ang.y), std::sin(ang.z) };

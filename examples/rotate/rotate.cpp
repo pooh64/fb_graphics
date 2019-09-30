@@ -1,5 +1,6 @@
 #include <include/fbuffer.h>
 #include <include/vector_space.h>
+#include <include/rasterize.h>
 #include <include/mouse.h>
 
 #include <cstdio>
@@ -33,30 +34,45 @@ struct test_cube3d {
 		}
 	}
 
-	void draw(fbuffer &fb, fbuffer::color c)
+	void rasterize(line_rasterizer &rast, std::vector<fbuffer::vector> &out)
 	{
 		vector2d proj[8];
-		matrix3d rot_mat = rotation_matrix3d(angle);
+		matrix3d rot_mat = rotation_matrix3d_euler(angle);
+		double ratio = rast.get_ratio();
 
-		for (int i = 0; i < 8; i++)
+		for (int i = 0; i < 8; i++) {
 			proj[i] = simple_camera_transform(arr[i], camera_dist,
 							  rot_mat);
+			proj[i].y = proj[i].y * ratio;
+		}
 
-		fb.draw_line_strip(proj, 4, c);
-		fb.draw_line(proj[3], proj[0], c);
-		fb.draw_line_strip(proj + 4, 4, c);
-		fb.draw_line(proj[7], proj[4], c);
-		for (int i = 0; i < 4; i++)
-			fb.draw_line(proj[i], proj[i+4], c);
+		rast.rasterize(proj[0], proj[1], out);
+		rast.rasterize(proj[1], proj[2], out);
+		rast.rasterize(proj[2], proj[3], out);
+		rast.rasterize(proj[3], proj[0], out);
+
+		rast.rasterize(proj[4], proj[5], out);
+		rast.rasterize(proj[5], proj[6], out);
+		rast.rasterize(proj[6], proj[7], out);
+		rast.rasterize(proj[7], proj[4], out);
+
+		rast.rasterize(proj[0], proj[4], out);
+		rast.rasterize(proj[1], proj[5], out);
+		rast.rasterize(proj[2], proj[6], out);
+		rast.rasterize(proj[3], proj[7], out);
 	}
 
 	void rotate(vector3d d_angle)
-		{ angle = angle + d_angle; }
+	{
+		angle = angle + d_angle;
+	}
 };
 
 int main()
 {
 	fbuffer fb;
+	line_rasterizer rast;
+	std::vector<fbuffer::vector> rast_container;
 	mouse ms;
 	test_cube3d cube;
 
@@ -64,6 +80,7 @@ int main()
 		std::perror("fb.init");
 		goto handle_err_0;
 	}
+	rast.set_from_fb(fb);
 
 	if (ms.init("/dev/input/mice") < 0) {
 		std::perror("ms.init");
@@ -77,9 +94,12 @@ int main()
 			vector3d d_angle{rotate_scale * std::int8_t(ev.dy),
 					 rotate_scale * std::int8_t(ev.dx), 0};
 			cube.rotate(d_angle);
-			fb.fill(fbuffer::color{0, 0, 0, });
-			cube.draw(fb, fbuffer::color{0, 255, 0, 0});
+			cube.rasterize(rast, rast_container);
+			fb.clear();
+			for (auto const &vec : rast_container)
+				fb[vec.y][vec.x] = fbuffer::color{255, 255, 255, 0};
 			fb.update();
+			rast_container.clear();
 		}
 		usleep(1000L * 1000L / 60);
 	}
