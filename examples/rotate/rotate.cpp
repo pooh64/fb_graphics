@@ -14,7 +14,7 @@ struct test_cube3d {
 	vector3d arr[8];
 	vector3d angle = vector3d{0, 0, 0};
 	double const camera_dist = 3;
-	double const size = 0.6;
+	double const size = 1;
 
 	test_cube3d()
 	{

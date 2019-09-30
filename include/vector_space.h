@@ -112,7 +112,7 @@ inline vector2d simple_camera_transform(vector3d vec, double dist,
 					matrix3d rot_mat)
 {
 	vector3d rot = rot_mat * vec;
-	return direct_proj(rot) * (dist / (dist - rot.z));
+	return direct_proj(rot) * (1 / (dist - rot.z));
 }
 
 #if 0

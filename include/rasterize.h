@@ -14,6 +14,8 @@ private:
 
 	fbuffer::vector transform(vector2d &vec);
 
+	bool check_bounds(fbuffer::vector &vec);
+
 public:
 	void set_from_fb(fbuffer &fb);
 	void set_params(fbuffer::vector min, fbuffer::vector max);
@@ -54,11 +56,22 @@ inline fbuffer::vector line_rasterizer::transform(vector2d &vec)
 		 std::uint32_t(center_scr.y + vec.y * size_scr.y + 0.5f)};
 }
 
+inline bool line_rasterizer::check_bounds(fbuffer::vector &vec)
+{
+	if ((vec.x < min_scr.x) || (vec.x > max_scr.x) ||
+	    (vec.y < min_scr.y) || (vec.y > max_scr.y))
+		return false;
+	return true;
+}
+
 inline void line_rasterizer::rasterize(vector2d &_beg, vector2d &_end,
 				       std::vector<fbuffer::vector> &out)
 {
 	fbuffer::vector beg = transform(_beg);
 	fbuffer::vector end = transform(_end);
+
+	if (!check_bounds(beg) || !check_bounds(end))
+		return;
 
 	fbuffer::vector vec;
 	double k;
