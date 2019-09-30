@@ -7,29 +7,29 @@
 #include <cstdlib>
 
 extern "C" {
-	#include <unistd.h>
+#include <unistd.h>
 }
 
 struct test_cube3d {
 	vector3d arr[8];
-	vector3d angle = vector3d{0, 0, 0};
+	vector3d angle = vector3d{ 0, 0, 0 };
 	double const camera_dist = 3;
 	double const size = 1;
 
 	test_cube3d()
 	{
-		arr[0] = vector3d{0, 0, 0};
-		arr[1] = vector3d{1, 0, 0};
-		arr[2] = vector3d{1, 1, 0};
-		arr[3] = vector3d{0, 1, 0};
-		arr[4] = vector3d{0, 0, 1};
-		arr[5] = vector3d{1, 0, 1};
-		arr[6] = vector3d{1, 1, 1};
-		arr[7] = vector3d{0, 1, 1};
+		arr[0] = vector3d{ 0, 0, 0 };
+		arr[1] = vector3d{ 1, 0, 0 };
+		arr[2] = vector3d{ 1, 1, 0 };
+		arr[3] = vector3d{ 0, 1, 0 };
+		arr[4] = vector3d{ 0, 0, 1 };
+		arr[5] = vector3d{ 1, 0, 1 };
+		arr[6] = vector3d{ 1, 1, 1 };
+		arr[7] = vector3d{ 0, 1, 1 };
 
 		for (int i = 0; i < 8; i++) {
 			vector3d &vec = arr[i];
-			vec = vector3d{vec.x - 0.5, vec.y - 0.5, vec.z - 0.5};
+			vec = vector3d{ vec.x - 0.5, vec.y - 0.5, vec.z - 0.5 };
 			vec = vec * size;
 		}
 	}
@@ -91,19 +91,20 @@ int main()
 		const double rotate_scale = 0.01;
 		mouse::event ev;
 		if (ms.poll(ev)) {
-			vector3d d_angle{rotate_scale * std::int8_t(ev.dy),
-					 rotate_scale * std::int8_t(ev.dx), 0};
+			vector3d d_angle{ rotate_scale * std::int8_t(ev.dy),
+					  rotate_scale * std::int8_t(ev.dx),
+					  0 };
 			cube.rotate(d_angle);
 			cube.rasterize(rast, rast_container);
 			fb.clear();
 			for (auto const &vec : rast_container)
-				fb[vec.y][vec.x] = fbuffer::color{255, 255, 255, 0};
+				fb[vec.y][vec.x] =
+					fbuffer::color{ 255, 255, 255, 0 };
 			fb.update();
 			rast_container.clear();
 		}
 		usleep(1000L * 1000L / 60);
 	}
-
 
 	if (ms.destroy() < 0) {
 		std::perror("ms.destroy");

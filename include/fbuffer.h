@@ -1,15 +1,11 @@
 #pragma once
 
 #include <cstdint>
-#include <cstdio>
-#include <algorithm>
+#include <cstdlib>
 
-#include <include/vector_space.h>
-
-extern "C"
-{
-	#include <linux/fb.h>
-	#include <stdint.h>
+extern "C" {
+#include <linux/fb.h>
+#include <stdint.h>
 }
 
 struct fbuffer : public fb_var_screeninfo, public fb_fix_screeninfo {
@@ -23,8 +19,6 @@ struct fbuffer : public fb_var_screeninfo, public fb_fix_screeninfo {
 
 	color *buf;
 
-	color &operator()(std::uint32_t x, std::uint32_t y);
-
 	color *operator[](std::uint32_t);
 	color const *operator[](std::uint32_t) const;
 
@@ -35,11 +29,7 @@ struct fbuffer : public fb_var_screeninfo, public fb_fix_screeninfo {
 	void fill(color c);
 	void clear();
 
-	vector transform(vector2d vec);
-	void draw_line(vector2d beg, vector2d end, color c);
-	void draw_line_strip(vector2d arr[], std::size_t arr_s, color c);
-
-private:
+    private:
 	int fd;
 };
 
@@ -61,7 +51,7 @@ inline void fbuffer::fill(fbuffer::color c)
 
 inline void fbuffer::clear()
 {
-	color empty{0, 0, 0, 0};
+	color empty{ 0, 0, 0, 0 };
 	for (std::size_t i = 0; i < xres * yres; ++i)
 		buf[i] = empty;
 }
