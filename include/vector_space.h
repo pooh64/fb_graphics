@@ -39,6 +39,11 @@ inline vector3d operator-(vector3d const &v1, vector3d const &v2)
 	return vector3d{ v1.x - v2.x, v1.y - v2.y, v1.z - v2.z };
 }
 
+inline vector2d operator-(vector2d const &v1, vector2d const &v2)
+{
+	return vector2d{ v1.x - v2.x, v1.y - v2.y };
+}
+
 inline vector3d operator*(vector3d const &v, double k)
 {
 	return vector3d{ v.x * k, v.y * k, v.z * k };
@@ -78,7 +83,8 @@ inline matrix3d rotation_matrix3d_euler(vector3d ang)
 	double c[3] = { std::cos(ang.x), std::cos(ang.y), std::cos(ang.z) };
 	double s[3] = { std::sin(ang.x), std::sin(ang.y), std::sin(ang.z) };
 	struct matrix3d m;
-/*
+
+#if 0
 	m[0][0] =  c[1] * c[2];
 	m[0][1] = -c[1] * s[2];
 	m[0][2] = -s[1];
@@ -90,7 +96,7 @@ inline matrix3d rotation_matrix3d_euler(vector3d ang)
 	m[2][0] =  s[0] * s[2] - c[0] * c[2] * s[1];
 	m[2][1] =  c[2] * s[0] - c[0] * s[1] * s[2];
 	m[2][2] =  c[0] * c[1];
-*/
+#endif
 
 	m[0][0] = c[1] * c[2];
 	m[0][1] = -c[1] * s[2];
@@ -103,6 +109,7 @@ inline matrix3d rotation_matrix3d_euler(vector3d ang)
 	m[2][0] = -c[0] * s[1] * c[2] + s[0] * s[2];
 	m[2][1] = c[0] * s[1] * s[2] + s[0] * c[2];
 	m[2][2] = c[0] * c[1];
+
 	return m;
 }
 

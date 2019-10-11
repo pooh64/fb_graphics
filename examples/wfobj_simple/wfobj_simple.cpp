@@ -17,7 +17,8 @@ struct wfobj {
 	mesh data;
 
 	vector3d angle = vector3d{0, 0, 0};
-	double const camera_dist = 4;
+	double const camera_dist = 2;
+	vector3d const move{0, -0.75f, 0};
 
 	void import(char const * path)
 	{
@@ -38,7 +39,7 @@ struct wfobj {
 
 			vector3d vec[3];
 			for (std::size_t i = 0; i < 3; i++)
-				vec[i] = vert[i].pos;
+				vec[i] = vert[i].pos + move;
 
 			vector2d proj[3];
 			for (std::size_t i = 0; i < 3; i++) {

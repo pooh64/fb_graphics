@@ -8,9 +8,11 @@ OBJDIR := $(SELF_DIR)/obj
 LIBDIR := $(SELF_DIR)/lib
 
 $(OBJDIR)/%.o: $(LIBDIR)/%.cpp
+	mkdir -p $(OBJDIR)
 	$(CXX) -c $(CPPFLAGS) $< -o $@
 
 $(OBJDIR)/%.d: $(LIBDIR)/%.cpp
+	mkdir -p $(OBJDIR)
 	$(CXX) $(CPPFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
 lib_src := $(wildcard $(LIBDIR)/*.cpp)
