@@ -3,28 +3,28 @@
 #include <cmath>
 
 struct vector2d {
-	double x, y;
+	float x, y;
 };
 
 struct vector3d {
-	double x, y, z;
+	float x, y, z;
 };
 
 struct matrix3d {
-	double data[3][3];
+	float data[3][3];
 
-	double *operator[](std::size_t i)
+	float *operator[](std::size_t i)
 	{
 		return data[i];
 	}
 
-	double const *operator[](std::size_t i) const
+	float const *operator[](std::size_t i) const
 	{
 		return data[i];
 	}
 };
 
-inline vector2d operator*(vector2d const &v, double k)
+inline vector2d operator*(vector2d const &v, float k)
 {
 	return vector2d{ v.x * k, v.y * k };
 }
@@ -44,12 +44,12 @@ inline vector2d operator-(vector2d const &v1, vector2d const &v2)
 	return vector2d{ v1.x - v2.x, v1.y - v2.y };
 }
 
-inline vector3d operator*(vector3d const &v, double k)
+inline vector3d operator*(vector3d const &v, float k)
 {
 	return vector3d{ v.x * k, v.y * k, v.z * k };
 }
 
-inline double dot_product(vector3d const &v1, vector3d const &v2)
+inline float dot_product(vector3d const &v1, vector3d const &v2)
 {
 	return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
 }
@@ -60,7 +60,7 @@ inline vector3d cross_product(vector3d const &v1, vector3d const &v2)
 			 v1.x * v2.y - v1.y * v2.x };
 }
 
-inline double lenght(vector3d const &v)
+inline float lenght(vector3d const &v)
 {
 	return std::sqrt(dot_product(v, v));
 }
@@ -80,8 +80,8 @@ inline vector2d direct_proj(vector3d const &vec)
 
 inline matrix3d rotation_matrix3d_euler(vector3d ang)
 {
-	double c[3] = { std::cos(ang.x), std::cos(ang.y), std::cos(ang.z) };
-	double s[3] = { std::sin(ang.x), std::sin(ang.y), std::sin(ang.z) };
+	float c[3] = { std::cos(ang.x), std::cos(ang.y), std::cos(ang.z) };
+	float s[3] = { std::sin(ang.x), std::sin(ang.y), std::sin(ang.z) };
 	struct matrix3d m;
 
 #if 0
@@ -113,7 +113,7 @@ inline matrix3d rotation_matrix3d_euler(vector3d ang)
 	return m;
 }
 
-inline vector2d simple_camera_transform(vector3d vec, double dist,
+inline vector2d simple_camera_transform(vector3d vec, float dist,
 					matrix3d rot_mat)
 {
 	vector3d rot = rot_mat * vec;
