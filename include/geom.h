@@ -129,6 +129,15 @@ struct mat3 {
 	}
 };
 
+struct vec3 operator*(mat3 const &m, vec3 const &v)
+{
+	vec3 ret = { 0, 0, 0 };
+	for (int i = 0; i < 3; ++i)
+		for (int j = 0; j < 3; ++j)
+			ret[i] += mat[i][j] * v[j];
+	return ret;
+}
+
 /* ************************************************************************** */
 
 struct vec4 {
@@ -203,6 +212,11 @@ inline mat4 make_mat4_rotate(vec3 const &v, float a)
 	float c = std::cos(a);
 	float s = std::sin(a);
 	float t = 1 - c;
+
+	vec3 n = normalize(v);
+	float x = n.x;
+	float y = n.y;
+	float z = n.z;
 
 	mat4 ret = { c+x*x*t,   y*x*t+z*s, z*x*t-y*s, 0,
 		     x*y*t-z*s, c+y*y*t,   z*y*t+x*s, 0,
@@ -322,23 +336,37 @@ inline vec4 to_vec4(vec3 const &v)
 	return vec4 { v.x, v.y, v.z, 1 };
 }
 
+struct vec4 operator*(mat4 const &m, vec4 const &v)
+{
+	vec4 ret = { 0, 0, 0, 0 };
+	for (int i = 0; i < 4; ++i)
+		for (int j = 0; j < 4; ++j)
+			ret[i] += mat[i][j] * v[j];
+	return ret;
+}
+
 /* ************************************************************************** */
 
-struct screen_viewport {
+struct viewport_transform {
 	vec3 scale, offs;
+	vec3 min_scr;
+	vec3 max_scr;
 
 	void set(uint32_t x_, uint32_t y_, uint32_t w_, uint32_t h_)
 	{
 		float x = x_, y = y_, w = w_, h = h_;
 		scale = vec3 { w/2,      h/2,     (f-n)/2 };
 		offs  = vec3 { x + w/2,  y + h/2, (f+n)/2 };
+
+		min_scr = (-1) * scale + offs;
+		max_scr =   1  * scale + offs;
 	}
 
 	inline vec3 operator()(vec3 const &v) const
 	{
 		vec3 ret;
 		for (int i = 0; i < 3; ++i)
-			ret[i] = v[i] * scale[i] + offs;
+			ret[i] = v[i] * scale[i] + offs[i];
 		return ret;
 	}
 };

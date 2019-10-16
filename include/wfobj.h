@@ -3,13 +3,13 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
-#include <include/vector_space.h>
+#include <include/geom.h>
 
 struct mesh {
 	struct vertex {
-		vector3d pos;
-		vector2d tex;
-		vector3d norm;
+		vec3 pos;
+		vec2 tex;
+		vec3 norm;
 	};
 
 	std::vector<vertex> verts;
@@ -24,27 +24,27 @@ inline mesh import_obj(char const *filename)
 		throw std::invalid_argument("can not find file " +
 					    std::string(filename));
 	std::string line;
-	std::vector<vector3d> pos;
-	std::vector<vector2d> tex;
-	std::vector<vector3d> norm;
+	std::vector<vec3> pos;
+	std::vector<vec2> tex;
+	std::vector<vec3> norm;
 	while (std::getline(in, line)) {
 		std::istringstream iss(line);
 		std::string word;
 		iss >> word;
 		if (word == "v") {
-			vector3d v;
+			vec3 v;
 			if (!(iss >> v.x >> v.y >> v.z))
 				throw std::runtime_error(
 					"could not parse line: " + line);
 			pos.push_back(v);
 		} else if (word == "vt") {
-			vector2d v;
+			vec2 v;
 			if (!(iss >> v.x >> v.y))
 				throw std::runtime_error(
 					"could not parse line: " + line);
 			tex.push_back(v);
 		} else if (word == "vn") {
-			vector3d v;
+			vec3 v;
 			if (!(iss >> v.x >> v.y >> v.z))
 				throw std::runtime_error(
 					"could not parse line: " + line);
