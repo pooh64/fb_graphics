@@ -35,19 +35,27 @@ struct tr_shader {
 
 	fbuffer::color fragment_shader(vertex const &in) const
 	{
-		vec3 light { -2, 0, -4 };
+		vec3 light { -1, 0, -4 };
 		vec3 light_dir = normalize(light - in.pos);
 
 		double dot = dot_prod(light_dir, normalize(in.norm));
 		dot = std::max(dot, 0.0);
 
-		double col = 0.2 + 0.3 * dot + 0.5 * dot * dot * dot * dot;
+		double col = 0.01 + 0.2 * dot + 0.65 * std::pow(dot, 30);
 
 		return fbuffer::color { uint8_t(col * 255),
 					uint8_t(col * 255),
 					uint8_t(col * 255), 255 };
 	}
 };
+
+vec2 middle_pixel_align(vec2 const &v)
+{
+	vec2 ret = v;
+	for (int i = 0; i < 2; ++i)
+		modf(ret[i], &ret[i]);
+	return ret;
+}
 
 struct tr_rasterizer {
 	void rasterize(vec3 const (&tr)[3], std::vector<vec3> &out_barc,
@@ -72,20 +80,19 @@ struct tr_rasterizer {
 
 		// add z check???
 
-		vec2 r;
 		vec2 r0 = vec2 { tr[0].x, tr[0].y };
 		double det = d1.x * d2.y - d1.y * d2.x;
 		if (det == 0)
 			return;
 
-		for (r.y = min_f.y; r.y <= max_f.y; r.y += 1.0f) {
-			for (r.x = min_f.x; r.x <= max_f.x; r.x += 1.0f) {
-				vec2 r_rel = r - r0;
+		for (int32_t y = min_f.y; y <= max_f.y; ++y) {
+			for (int32_t x = min_f.x; x <= max_f.x; ++x) {
+				vec2 r_rel = vec2{double(x), double(y)} - r0;
 				double det1 = r_rel.x * d2.y - r_rel.y * d2.x;
 				double det2 = d1.x * r_rel.y - d1.y * r_rel.x;
 				vec3 c = vec3 { (det - det1 - det2) / det,
 						det1 / det, det2 / det };
-				if (c[0] > 0 && c[1] > 0 && c[2] > 0) {
+				if (c[0] >= 0 && c[1] >= 0 && c[2] >= 0) {
 					out_barc.push_back(c);
 					//std::cout << "rasterize: " << r.x << " " << r.y << std::endl;
 				}
@@ -138,7 +145,7 @@ struct tr_z_test {
 				zbuf[ind].free = false;
 				zbuf[ind].vert = e.view;
 			} else {
-				if (zbuf[ind].vert.pos.z > e.view.pos.z) ////// ????????????????????????????????
+				if (zbuf[ind].vert.pos.z > e.view.pos.z)
 					zbuf[ind].vert = e.view;
 			}
 		}
@@ -162,11 +169,12 @@ struct tr_pipeline {
 		z_test.fb.init("/dev/fb0");
 		z_test.zbuf.resize((z_test.fb.xres * z_test.fb.yres));
 
-		mat4 model = make_mat4_translate(vec3 {0.0f, 0.0f, 0.0f });
+		mat4 model = make_mat4_translate(vec3 {0, 0.2, 0});
+
 		model = make_mat4_rotate(vec3 {0, 0, 1}, 3.1415) * model;
-		model = make_mat4_rotate(vec3 {0, 1, 0}, 0.5) * model;
+		model = make_mat4_rotate(vec3 {0, 1, 0}, 0.7) * model;
 		model = make_mat4_rotate(vec3 {1, 0, 0}, 0.5) * model;
-		model = make_mat4_translate(vec3 {0, 0, -3.0f}) * model; // no lookat
+		model = make_mat4_translate(vec3 {0, 0, -6.0f}) * model; // no lookat
 
 		//mat4 model = make_mat4_rotate(vec3 {0, 0, 1}, 3.1415);
 		//model = make_mat4_rotate(vec3 {0, 1, 0}, 0.5) * model;
@@ -176,7 +184,7 @@ struct tr_pipeline {
 		//mat4 model = make_mat4_identy();
 		mat4 view = make_mat4_identy();
 
-		double winsize = 1.0f;
+		double winsize = 1.0 / 2.5;
 		mat4 proj = make_mat4_projection(winsize, -winsize, winsize, -winsize, 1, 3);
 		shader.pos_transf = proj * (view * model);
 
