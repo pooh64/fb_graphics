@@ -1,7 +1,7 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
 CXX := g++
-CPPFLAGS := -std=gnu++17 -g -O2 -I$(SELF_DIR)
+CPPFLAGS := -std=gnu++17 -g -O0 -mavx -I$(SELF_DIR)
 LDFLAGS :=
 
 OBJDIR := $(SELF_DIR)/obj

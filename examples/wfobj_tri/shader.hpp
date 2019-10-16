@@ -1,5 +1,11 @@
 #pragma once
 
+#include <include/geom.h>
+#include <include/fbuffer.h>
+#include <include/wfobj.h>
+
+#include <iostream>
+
 struct vertex {
 	vec3 pos;
 	vec2 tex;
@@ -23,13 +29,23 @@ struct tr_shader {
 		out.view.pos  = to_vec3(pos_transf  * to_vec4(in.pos));
 		out.view.norm = to_vec3(norm_transf * to_vec4(in.norm));
 		out.screen_pos = screen_transf(out.view.pos);
-		out.tex = in.tex;
+		out.view.tex = in.tex;
 		return out;
 	}
 
 	fbuffer::color fragment_shader(vertex const &in) const
 	{
-		return fbuffer::color { 200, 200, 200, 255 };
+		vec3 light { -2, 0, -4 };
+		vec3 light_dir = normalize(light - in.pos);
+
+		double dot = dot_prod(light_dir, normalize(in.norm));
+		dot = std::max(dot, 0.0);
+
+		double col = 0.2 + 0.3 * dot + 0.5 * dot * dot * dot * dot;
+
+		return fbuffer::color { uint8_t(col * 255),
+					uint8_t(col * 255),
+					uint8_t(col * 255), 255 };
 	}
 };
 
@@ -48,45 +64,54 @@ struct tr_rasterizer {
 		vec2 max_f{std::max(tr[0].x, std::max(tr[1].x, tr[2].x)),
 			   std::max(tr[0].y, std::max(tr[1].y, tr[2].y))};
 
-		min_f = {std::min(min_f.x, scr_tr.min_scr.x),
-			 std::min(min_f.y, scr_tr.min_scr.y)};
+		min_f = {std::max(min_f.x, scr_tr.min_scr.x),
+			 std::max(min_f.y, scr_tr.min_scr.y)};
 
-		max_f = {std::max(max_f.x, scr_tr.max_scr.x)
-			 std::max(max_f.y, scr_tr.max_scr.y)};
+		max_f = {std::min(max_f.x, scr_tr.max_scr.x),
+			 std::min(max_f.y, scr_tr.max_scr.y)};
+
+		// add z check???
 
 		vec2 r;
 		vec2 r0 = vec2 { tr[0].x, tr[0].y };
-		float det = d1.x * d2.y - d1.y * d2.x;
+		double det = d1.x * d2.y - d1.y * d2.x;
 		if (det == 0)
 			return;
 
-		for (r.y = min_f.y; r.y <= max_f.y; r.y++) {
-			for (r.x = min_f.x; r.x <= max_f.x; r.x++) {
-				vector2d r_rel = r - r0;
-				float det1 = r_rel.x * d2.y - r_rel.y * d2.x;
-				float det2 = d1.x * r_rel.y - d1.y * r_rel.x;
+		for (r.y = min_f.y; r.y <= max_f.y; r.y += 1.0f) {
+			for (r.x = min_f.x; r.x <= max_f.x; r.x += 1.0f) {
+				vec2 r_rel = r - r0;
+				double det1 = r_rel.x * d2.y - r_rel.y * d2.x;
+				double det2 = d1.x * r_rel.y - d1.y * r_rel.x;
 				vec3 c = vec3 { (det - det1 - det2) / det,
 						det1 / det, det2 / det };
-				if (c[0] < 0 || c[1] < 0 || c[2] < 0)
-					continue;
-				out_barc.push_back(c);
+				if (c[0] > 0 && c[1] > 0 && c[2] > 0) {
+					out_barc.push_back(c);
+					//std::cout << "rasterize: " << r.x << " " << r.y << std::endl;
+				}
 			}
 		}
+		//std::cout<<"done---------------------------" << std::endl;
 	}
 };
 
 struct tr_interpolator {
-	void interpolate(vertex const (&tr)[3], std::vector<vec3> const &barc,
-						std::vector<vertex> &out)
+	void interpolate(tr_vs_out const (&tr)[3], std::vector<vec3> const &barc,
+						   std::vector<tr_vs_out> &out)
 	{
 		for (auto const &c : barc) {
-			vertex v = { .pos = 0, .tex = 0, .norm = 0 };
+			vertex v = vertex { .pos  = vec3 {0, 0, 0},
+					    .tex  = vec2 {0, 0},
+					    .norm = vec3 {0, 0, 0}};
+			vec3 scr_p = vec3 { 0, 0, 0 };
 			for (int i = 0; i < 3; ++i) {
-				v.pos  += c[i] * tr[i].pos;
-				v.norm += c[i] * tr[i].norm;
-				v.tex  += c[i] * tr[i].tex;
+				v.pos  = v.pos  + c[i] * tr[i].view.pos;
+				v.norm = v.norm + c[i] * tr[i].view.norm;
+				v.tex  = v.tex  + c[i] * tr[i].view.tex;
+				scr_p  = scr_p  + c[i] * tr[i].screen_pos;
 			}
-			n.norm = normalize(n.norm);
+			v.norm = normalize(v.norm);
+			out.push_back(tr_vs_out{.view = v, .screen_pos = scr_p});
 		}
 	}
 };
@@ -96,23 +121,25 @@ struct tr_z_test {
 		bool free;
 		vertex vert;
 	};
-	std::vector<zbuf_elem> zbuf; // init
-	void test(std::vector<vertex> const &in)
+	std::vector<zbuf_elem> zbuf;
+	fbuffer fb;
+	void test(std::vector<tr_vs_out> const &in)
 	{
 		for (auto &e : zbuf)
 			e.free = true;
 
-		for (auto const &v : in) {
-			std::size_t j = std::size_t(v.pos.x + 0.5f) *
-					std::size_t(v.pos.y + 0.5f);
-			if (j > zbuf.size)
+		for (auto const &e : in) {
+			uint32_t x = std::uint32_t(e.screen_pos.x - 0.5f);
+			uint32_t y = std::uint32_t(e.screen_pos.y - 0.5f);
+			uint32_t ind = x + fb.xres * y;
+			if (x >= fb.xres || y >= fb.yres)
 				continue;
-			if (zbuf[j].free == true) {
-				zbuf[j].free = false;
-				zbuf[j].vert = v;
+			if (zbuf[ind].free == true) {
+				zbuf[ind].free = false;
+				zbuf[ind].vert = e.view;
 			} else {
-				if (zbuf[j].vertex.pos.z > v.pos.z) ////// ????????????????????????????????
-					zbuf[j].vert = v;
+				if (zbuf[ind].vert.pos.z > e.view.pos.z) ////// ????????????????????????????????
+					zbuf[ind].vert = e.view;
 			}
 		}
 	}
@@ -123,27 +150,39 @@ struct tr_pipeline {
 	struct tr_rasterizer	rast;
 	struct tr_z_test	z_test;
 	struct tr_interpolator	interp;
-	struct fbuffer		fb;
 
 	mesh data;
 	std::vector<vertex>	vertex_buf;
 	std::vector<tr_vs_out>	vshader_buf;
 	std::vector<vec3>	barc_buf;
-	std::vector<vertex>	interp_buf;
+	std::vector<tr_vs_out>	interp_buf;
 
 	void init()
 	{
-		fb.init("/dev/fb0");
+		z_test.fb.init("/dev/fb0");
+		z_test.zbuf.resize((z_test.fb.xres * z_test.fb.yres));
 
-		mat4 view = make_mat4_view( vec3 {0, 0, -2},
-					    vec3 {0, 0,  0},
-					    vec3 {0, 1,  0});
-		mat4 proj = make_mat4_projection(1, -1, 1, -1, 1, 3);
-		shader.pos_transf = proj * view;
+		mat4 model = make_mat4_translate(vec3 {0.0f, 0.0f, 0.0f });
+		model = make_mat4_rotate(vec3 {0, 0, 1}, 3.1415) * model;
+		model = make_mat4_rotate(vec3 {0, 1, 0}, 0.5) * model;
+		model = make_mat4_rotate(vec3 {1, 0, 0}, 0.5) * model;
+		model = make_mat4_translate(vec3 {0, 0, -3.0f}) * model; // no lookat
+
+		//mat4 model = make_mat4_rotate(vec3 {0, 0, 1}, 3.1415);
+		//model = make_mat4_rotate(vec3 {0, 1, 0}, 0.5) * model;
+		//model = make_mat4_translate( vec3 {0.0, 0.8, -2.0f}) * model;
+		//
+		//mat4 view = make_mat4_view( vec3 {0, -0.5f, -1.0f}, vec3 {0, -0.5f, 0}, vec3 {0, 1.0f,  0});
+		//mat4 model = make_mat4_identy();
+		mat4 view = make_mat4_identy();
+
+		double winsize = 1.0f;
+		mat4 proj = make_mat4_projection(winsize, -winsize, winsize, -winsize, 1, 3);
+		shader.pos_transf = proj * (view * model);
+
 		shader.norm_transf = transpose(inverse(shader.pos_transf));
-		shader.screen_transf.set(0, 0, fb.xres - 1, fb.xres - 1);
-
-		z_test.zbuf.resize((fb.xres * fb.yres));
+		shader.screen_transf.set(0, 0, z_test.fb.xres - 1,
+					 z_test.fb.xres - 1, -2000, 2000);
 	}
 
 	void load_data()
@@ -166,48 +205,43 @@ struct tr_pipeline {
 
 	void process()
 	{
-		for (auto const &v : vertex_buf)
+		std::cout<< "vshader in: " << vertex_buf.size() << std::endl;
+
+		//int i = 0;
+		for (auto const &v : vertex_buf) {
+		//	if (i++ == 3)
+		//		 break;
 			vshader_buf.push_back(shader.vertex_shader(v));
+		}
+
+		std::cout<< "vshader out: " << vshader_buf.size() << std::endl;
 
 		for (std::size_t i = 0; i < vshader_buf.size(); i += 3) {
-			vertex tr[3] = { vshader_buf[i], vshader_buf[i + 1],
-					 vshader_buf[i + 2] };
-			rast.rasterize(tr, barc_buf, shader.screen_transf);
-			interp.interpolate(tr, barc_buf, interp_buf);
+			vec3 tr_vec[3] = {    vshader_buf[i]    .screen_pos,
+					      vshader_buf[i + 1].screen_pos,
+					      vshader_buf[i + 2].screen_pos };
+			tr_vs_out info[3] = { vshader_buf[i],
+					      vshader_buf[i + 1],
+					      vshader_buf[i + 2] };
+			rast.rasterize(tr_vec, barc_buf, shader.screen_transf);
+			interp.interpolate(info, barc_buf, interp_buf);
 			barc_buf.clear();
 		}
 		vshader_buf.clear();
 
+		std::cout<< "rast-interp out: " << interp_buf.size() << std::endl;
+
 		z_test.test(interp_buf);
 		interp_buf.clear();
+
+		std::cout<< "z-test finished" << std::endl;
 
 		for (std::size_t i = 0; i < z_test.zbuf.size(); ++i) {
 			bool free   = z_test.zbuf[i].free;
 			vertex vert = z_test.zbuf[i].vert;
 			if (free == false) {
-				fb[vert.pos.y + 0.5f][vert.pos.x + 0.5f] =
-					shader.fragment_shader(vert);
+				z_test.fb.buf[i] = shader.fragment_shader(vert);
 			}
 		}
 	}
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
