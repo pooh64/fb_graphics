@@ -38,24 +38,16 @@ struct tr_shader {
 		vec3 light { -1, 0, -4 };
 		vec3 light_dir = normalize(light - in.pos);
 
-		double dot = dot_prod(light_dir, normalize(in.norm));
-		dot = std::max(dot, 0.0);
+		float dot = dot_prod(light_dir, normalize(in.norm));
+		dot = std::max(dot, (typeof(dot))0);
 
-		double col = 0.01 + 0.2 * dot + 0.65 * std::pow(dot, 30);
+		float col = 0.01 + 0.2 * dot + 0.65 * std::pow(dot, 30);
 
 		return fbuffer::color { uint8_t(col * 255),
 					uint8_t(col * 255),
 					uint8_t(col * 255), 255 };
 	}
 };
-
-vec2 middle_pixel_align(vec2 const &v)
-{
-	vec2 ret = v;
-	for (int i = 0; i < 2; ++i)
-		modf(ret[i], &ret[i]);
-	return ret;
-}
 
 struct tr_rasterizer {
 	void rasterize(vec3 const (&tr)[3], std::vector<vec3> &out_barc,
@@ -65,6 +57,10 @@ struct tr_rasterizer {
 		vec3 d2_3 = tr[2] - tr[0];
 		vec2 d1 = { d1_3.x, d1_3.y };
 		vec2 d2 = { d2_3.x, d2_3.y };
+
+		float det = d1.x * d2.y - d1.y * d2.x;
+		if (det <= 0)
+			return;
 
 	 	vec2 min_f{std::min(tr[0].x, std::min(tr[1].x, tr[2].x)),
 			   std::min(tr[0].y, std::min(tr[1].y, tr[2].y))};
@@ -81,15 +77,12 @@ struct tr_rasterizer {
 		// add z check???
 
 		vec2 r0 = vec2 { tr[0].x, tr[0].y };
-		double det = d1.x * d2.y - d1.y * d2.x;
-		if (det == 0)
-			return;
 
 		for (int32_t y = min_f.y; y <= max_f.y; ++y) {
 			for (int32_t x = min_f.x; x <= max_f.x; ++x) {
-				vec2 r_rel = vec2{double(x), double(y)} - r0;
-				double det1 = r_rel.x * d2.y - r_rel.y * d2.x;
-				double det2 = d1.x * r_rel.y - d1.y * r_rel.x;
+				vec2 r_rel = vec2{float(x), float(y)} - r0;
+				float det1 = r_rel.x * d2.y - r_rel.y * d2.x;
+				float det2 = d1.x * r_rel.y - d1.y * r_rel.x;
 				vec3 c = vec3 { (det - det1 - det2) / det,
 						det1 / det, det2 / det };
 				if (c[0] >= 0 && c[1] >= 0 && c[2] >= 0) {
@@ -107,9 +100,10 @@ struct tr_interpolator {
 						   std::vector<tr_vs_out> &out)
 	{
 		for (auto const &c : barc) {
-			vertex v = vertex { .pos  = vec3 {0, 0, 0},
-					    .tex  = vec2 {0, 0},
-					    .norm = vec3 {0, 0, 0}};
+			vertex v;
+			v.pos  = vec3 {0, 0, 0};
+			v.tex  = vec2 {0, 0};
+			v.norm = vec3 {0, 0, 0};
 			vec3 scr_p = vec3 { 0, 0, 0 };
 			for (int i = 0; i < 3; ++i) {
 				v.pos  = v.pos  + c[i] * tr[i].view.pos;
@@ -124,8 +118,9 @@ struct tr_interpolator {
 };
 
 struct tr_z_test {
+	const float free_depth = std::numeric_limits<float>::max();
+
 	struct zbuf_elem {
-		bool free;
 		vertex vert;
 	};
 	std::vector<zbuf_elem> zbuf;
@@ -133,21 +128,16 @@ struct tr_z_test {
 	void test(std::vector<tr_vs_out> const &in)
 	{
 		for (auto &e : zbuf)
-			e.free = true;
+			e.vert.pos.z = free_depth;
 
 		for (auto const &e : in) {
 			uint32_t x = std::uint32_t(e.screen_pos.x - 0.5f);
 			uint32_t y = std::uint32_t(e.screen_pos.y - 0.5f);
 			uint32_t ind = x + fb.xres * y;
-			if (x >= fb.xres || y >= fb.yres)
-				continue;
-			if (zbuf[ind].free == true) {
-				zbuf[ind].free = false;
+			//if (x >= fb.xres || y >= fb.yres)
+			//	continue;
+			if (zbuf[ind].vert.pos.z > e.view.pos.z)
 				zbuf[ind].vert = e.view;
-			} else {
-				if (zbuf[ind].vert.pos.z > e.view.pos.z)
-					zbuf[ind].vert = e.view;
-			}
 		}
 	}
 };
@@ -184,7 +174,7 @@ struct tr_pipeline {
 		//mat4 model = make_mat4_identy();
 		mat4 view = make_mat4_identy();
 
-		double winsize = 1.0 / 2.5;
+		float winsize = 1.0 / 2.5;
 		mat4 proj = make_mat4_projection(winsize, -winsize, winsize, -winsize, 1, 3);
 		shader.pos_transf = proj * (view * model);
 
@@ -213,16 +203,12 @@ struct tr_pipeline {
 
 	void process()
 	{
-		std::cout<< "vshader in: " << vertex_buf.size() << std::endl;
-
 		//int i = 0;
 		for (auto const &v : vertex_buf) {
 		//	if (i++ == 3)
 		//		 break;
 			vshader_buf.push_back(shader.vertex_shader(v));
 		}
-
-		std::cout<< "vshader out: " << vshader_buf.size() << std::endl;
 
 		for (std::size_t i = 0; i < vshader_buf.size(); i += 3) {
 			vec3 tr_vec[3] = {    vshader_buf[i]    .screen_pos,
@@ -237,17 +223,12 @@ struct tr_pipeline {
 		}
 		vshader_buf.clear();
 
-		std::cout<< "rast-interp out: " << interp_buf.size() << std::endl;
-
 		z_test.test(interp_buf);
 		interp_buf.clear();
 
-		std::cout<< "z-test finished" << std::endl;
-
 		for (std::size_t i = 0; i < z_test.zbuf.size(); ++i) {
-			bool free   = z_test.zbuf[i].free;
 			vertex vert = z_test.zbuf[i].vert;
-			if (free == false) {
+			if (vert.pos.z != z_test.free_depth) {
 				z_test.fb.buf[i] = shader.fragment_shader(vert);
 			}
 		}

@@ -5,17 +5,17 @@
 struct vec2 {
 	union {
 		struct {
-			double x, y;
+			float x, y;
 		};
-		double data[2];
+		float data[2];
 	};
 
-	double &operator[](int i) noexcept
+	float &operator[](int i) noexcept
 	{
 		return data[i];
 	}
 
-	double const &operator[](int i) const noexcept
+	float const &operator[](int i) const noexcept
 	{
 		return data[i];
 	}
@@ -37,20 +37,20 @@ inline vec2 operator-(vec2 const &v1, vec2 const &v2)
 	return res;
 }
 
-inline double dot_prod(vec2 const &v1, vec2 const &v2)
+inline float dot_prod(vec2 const &v1, vec2 const &v2)
 {
-	double accum = 0;
+	float accum = 0;
 	for (int i = 0; i < 2; ++i)
 		accum += v1[i] * v2[i];
 	return accum;
 }
 
-inline double lenght(vec2 const &v)
+inline float lenght(vec2 const &v)
 {
 	return std::sqrt(dot_prod(v, v));
 }
 
-inline vec2 operator*(double const a, vec2 const &v)
+inline vec2 operator*(float const a, vec2 const &v)
 {
 	vec2 ret;
 	for (int i = 0; i < 2; ++i)
@@ -63,17 +63,17 @@ inline vec2 operator*(double const a, vec2 const &v)
 struct vec3 {
 	union {
 		struct {
-			double x, y, z;
+			float x, y, z;
 		};
-		double data[3];
+		float data[3];
 	};
 
-	double &operator[](int i) noexcept
+	float &operator[](int i) noexcept
 	{
 		return data[i];
 	}
 
-	double const &operator[](int i) const noexcept
+	float const &operator[](int i) const noexcept
 	{
 		return data[i];
 	}
@@ -95,9 +95,9 @@ inline vec3 operator-(vec3 const &v1, vec3 const &v2)
 	return res;
 }
 
-inline double dot_prod(vec3 const &v1, vec3 const &v2)
+inline float dot_prod(vec3 const &v1, vec3 const &v2)
 {
-	double accum = 0;
+	float accum = 0;
 	for (int i = 0; i < 3; ++i)
 		accum += v1[i] * v2[i];
 	return accum;
@@ -110,14 +110,14 @@ inline vec3 cross_prod(vec3 const &v1, vec3 const &v2)
 		     v1.x * v2.y - v1.y * v2.x };
 }
 
-inline double lenght(vec3 const &v)
+inline float lenght(vec3 const &v)
 {
 	return std::sqrt(dot_prod(v, v));
 }
 
 inline vec3 normalize(vec3 const &v)
 {
-	double len = lenght(v);
+	float len = lenght(v);
 	vec3 res;
 	for (int i = 0; i < 3; ++i)
 		res[i] = v[i] / len;
@@ -127,12 +127,12 @@ inline vec3 normalize(vec3 const &v)
 /* ************************************************************************** */
 
 struct mat3 {
-	double data[3][3];
-	double *operator[](int i) noexcept
+	float data[3][3];
+	float *operator[](int i) noexcept
 	{
 		return data[i];
 	}
-	double const *operator[](int i) const noexcept
+	float const *operator[](int i) const noexcept
 	{
 		return data[i];
 	}
@@ -147,7 +147,7 @@ struct vec3 operator*(mat3 const &m, vec3 const &v)
 	return ret;
 }
 
-struct vec3 operator*(double const a, vec3 const &v)
+struct vec3 operator*(float const a, vec3 const &v)
 {
 	vec3 ret;
 	for (int i = 0; i < 3; ++i)
@@ -160,17 +160,17 @@ struct vec3 operator*(double const a, vec3 const &v)
 struct vec4 {
 	union {
 		struct {
-			double x, y, z, w;
+			float x, y, z, w;
 		};
-		double data[4];
+		float data[4];
 	};
 
-	double &operator[](int i) noexcept
+	float &operator[](int i) noexcept
 	{
 		return data[i];
 	}
 
-	double const &operator[](int i) const noexcept
+	float const &operator[](int i) const noexcept
 	{
 		return data[i];
 	}
@@ -179,12 +179,12 @@ struct vec4 {
 /* ************************************************************************** */
 
 struct mat4 {
-	double data[4][4];
-	double *operator[](int i) noexcept
+	float data[4][4];
+	float *operator[](int i) noexcept
 	{
 		return data[i];
 	}
-	double const *operator[](int i) const noexcept
+	float const *operator[](int i) const noexcept
 	{
 		return data[i];
 	}
@@ -238,16 +238,16 @@ inline mat4 make_mat4_scale(vec3 const &v)
 	return ret;
 }
 
-inline mat4 make_mat4_rotate(vec3 const &v, double a)
+inline mat4 make_mat4_rotate(vec3 const &v, float a)
 {
-	double c = std::cos(a);
-	double s = std::sin(a);
-	double t = 1 - c;
+	float c = std::cos(a);
+	float s = std::sin(a);
+	float t = 1 - c;
 
 	vec3 n = normalize(v);
-	double x = n.x;
-	double y = n.y;
-	double z = n.z;
+	float x = n.x;
+	float y = n.y;
+	float z = n.z;
 
 	mat4 ret = { c+x*x*t,   y*x*t+z*s, z*x*t-y*s, 0,
 		     x*y*t-z*s, c+y*y*t,   z*y*t+x*s, 0,
@@ -257,9 +257,9 @@ inline mat4 make_mat4_rotate(vec3 const &v, double a)
 	return ret;
 }
 
-inline mat4 make_mat4_projection(double r, double l,
-				 double t, double b,
-				 double n, double f)
+inline mat4 make_mat4_projection(float r, float l,
+				 float t, float b,
+				 float n, float f)
 {
 	mat4 ret = { 2*n/(r-l), 0,         (r+l)/(r-l),  0,
 		     0,         2*n/(t-b), (t+b)/(t-b),  0,
@@ -271,9 +271,9 @@ inline mat4 make_mat4_projection(double r, double l,
 inline mat4 inverse(mat4 const &mat)
 {
 	mat4 ret;
-	double *inv = &ret.data[0][0];
-	double const *m = &mat.data[0][0];
-	double det;
+	float *inv = &ret.data[0][0];
+	float const *m = &mat.data[0][0];
+	float det;
 
 	inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] -
 		 m[9] * m[6] * m[15] + m[9] * m[7] * m[14] +
@@ -382,7 +382,7 @@ struct mat4 operator*(mat4 const &m1, mat4 const &m2)
 	mat4 ret;
 	for (int i = 0; i < 4; ++i) {
 		for (int j = 0; j < 4; ++j) {
-			double accum = 0;
+			float accum = 0;
 			for (int k = 0; k < 4; ++k)
 				accum += m1[i][k] * m2[k][j];
 			ret[i][j] = accum;
@@ -401,7 +401,7 @@ struct viewport_transform {
 	void set(uint32_t x_, uint32_t y_, uint32_t w_, uint32_t h_,
 		 int32_t f_, int32_t n_)
 	{
-		double x = x_, y = y_, w = w_, h = h_, f = f_, n = n_;
+		float x = x_, y = y_, w = w_, h = h_, f = f_, n = n_;
 		scale = vec3 { w/2,      h/2,     (f-n)/2 };
 		offs  = vec3 { x + w/2,  y + h/2, (f+n)/2 };
 

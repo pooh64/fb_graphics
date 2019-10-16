@@ -1,8 +1,15 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
 CXX := g++
-CPPFLAGS := -std=gnu++17 -g -O0 -mavx -I$(SELF_DIR)
+
 LDFLAGS :=
+
+# CPPFLAGS := -std=gnu++17 -g -O3 -mavx -I$(SELF_DIR)
+CPPFLAGS := -I$(SELF_DIR) -std=gnu++17 -Ofast -march=native -mtune=native -mavx -ftree-vectorize
+# CPPFLAGS += -frename-registers -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math
+
+# CPPFLAGS += -fsanitize=sanitize -g
+# LDFLAGS +=  -fsanitize=sanitize
 
 OBJDIR := $(SELF_DIR)/obj
 LIBDIR := $(SELF_DIR)/lib

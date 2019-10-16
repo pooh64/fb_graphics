@@ -10,9 +10,11 @@ int main()
 
 	pipeline.load_data();
 
-	pipeline.z_test.fb.clear();
-	pipeline.process();
-	pipeline.z_test.fb.update();
+	for (int i = 0; i < 100; ++i) {
+		pipeline.z_test.fb.clear();
+		pipeline.process();
+		pipeline.z_test.fb.update();
+	}
 
 	return 0;
 }
