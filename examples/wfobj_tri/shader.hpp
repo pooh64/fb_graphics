@@ -6,6 +6,8 @@
 
 #include <iostream>
 
+#define FIELD_SZ 15.0f
+
 struct vertex {
 	vec3 pos;
 	vec2 tex;
@@ -18,7 +20,8 @@ struct tr_vs_out {
 };
 
 struct tr_shader {
-	mat4 pos_transf;
+	mat4 model_view;
+	mat4 proj;
 	mat4 norm_transf;
 
 	struct viewport_transform screen_transf;
@@ -26,26 +29,28 @@ struct tr_shader {
 	tr_vs_out vertex_shader(vertex const &in) const
 	{
 		struct tr_vs_out out;
-		out.view.pos  = to_vec3(pos_transf  * to_vec4(in.pos));
+		vec4 mv_pos = model_view * to_vec4(in.pos);
+
+		out.view.pos  = to_vec3(mv_pos);
 		out.view.norm = to_vec3(norm_transf * to_vec4(in.norm));
-		out.screen_pos = screen_transf(out.view.pos);
+		out.screen_pos = screen_transf(to_vec3(proj * mv_pos));
 		out.view.tex = in.tex;
 		return out;
 	}
 
 	fbuffer::color fragment_shader(vertex const &in) const
 	{
-		vec3 light { -1, 0, -4 };
-		vec3 light_dir = normalize(light - in.pos);
+		vec3 light { 0, 0, FIELD_SZ };
+		vec3 light_dir = normalize(light - in.pos); // transform light
 
 		float dot = dot_prod(light_dir, normalize(in.norm));
 		dot = std::max(dot, (typeof(dot))0);
 
-		float col = 0.01 + 0.2 * dot + 0.65 * std::pow(dot, 30);
+		float col = 0.1f + 0.4f * dot + 0.45f * std::pow(dot, 32);
 
-		return fbuffer::color { uint8_t(col * 255),
+		return fbuffer::color { uint8_t(col * 200),
 					uint8_t(col * 255),
-					uint8_t(col * 255), 255 };
+					uint8_t(col * 200), 255 };
 	}
 };
 
@@ -85,13 +90,10 @@ struct tr_rasterizer {
 				float det2 = d1.x * r_rel.y - d1.y * r_rel.x;
 				vec3 c = vec3 { (det - det1 - det2) / det,
 						det1 / det, det2 / det };
-				if (c[0] >= 0 && c[1] >= 0 && c[2] >= 0) {
+				if (c[0] >= 0 && c[1] >= 0 && c[2] >= 0)
 					out_barc.push_back(c);
-					//std::cout << "rasterize: " << r.x << " " << r.y << std::endl;
-				}
 			}
 		}
-		//std::cout<<"done---------------------------" << std::endl;
 	}
 };
 
@@ -121,23 +123,26 @@ struct tr_z_test {
 	const float free_depth = std::numeric_limits<float>::max();
 
 	struct zbuf_elem {
-		vertex vert;
+		vertex vert; // rename
+		float depth;
 	};
 	std::vector<zbuf_elem> zbuf;
 	fbuffer fb;
 	void test(std::vector<tr_vs_out> const &in)
 	{
 		for (auto &e : zbuf)
-			e.vert.pos.z = free_depth;
+			e.depth = free_depth;
 
 		for (auto const &e : in) {
 			uint32_t x = std::uint32_t(e.screen_pos.x - 0.5f);
 			uint32_t y = std::uint32_t(e.screen_pos.y - 0.5f);
 			uint32_t ind = x + fb.xres * y;
-			//if (x >= fb.xres || y >= fb.yres)
-			//	continue;
-			if (zbuf[ind].vert.pos.z > e.view.pos.z)
+			if (x >= fb.xres || y >= fb.yres)
+				continue;
+			if (zbuf[ind].depth > e.screen_pos.z) {
+				zbuf[ind].depth = e.screen_pos.z;
 				zbuf[ind].vert = e.view;
+			}
 		}
 	}
 };
@@ -154,33 +159,35 @@ struct tr_pipeline {
 	std::vector<vec3>	barc_buf;
 	std::vector<tr_vs_out>	interp_buf;
 
+	void set_rotate(float x, float y)
+	{
+		mat4 model = make_mat4_translate(vec3 {0, 0, 0});
+
+		model = make_mat4_rotate(vec3 {0, 1, 0}, y) * model;
+		model = make_mat4_rotate(vec3 {1, 0, 0}, x) * model;
+
+		model = make_mat4_translate(vec3 {0, 0, -FIELD_SZ}) * model; // no lookat
+		mat4 view = make_mat4_identy();
+
+		shader.model_view = view * model;
+		shader.norm_transf = transpose(inverse(shader.model_view));
+
+		float winsize = 1.0;
+		float ratio = float (z_test.fb.xres) / z_test.fb.yres;
+		shader.proj = make_mat4_projection(winsize * ratio, -winsize * ratio, winsize, -winsize, 1, 10);
+	}
+
 	void init()
 	{
 		z_test.fb.init("/dev/fb0");
+
 		z_test.zbuf.resize((z_test.fb.xres * z_test.fb.yres));
 
-		mat4 model = make_mat4_translate(vec3 {0, 0.2, 0});
-
-		model = make_mat4_rotate(vec3 {0, 0, 1}, 3.1415) * model;
-		model = make_mat4_rotate(vec3 {0, 1, 0}, 0.7) * model;
-		model = make_mat4_rotate(vec3 {1, 0, 0}, 0.5) * model;
-		model = make_mat4_translate(vec3 {0, 0, -6.0f}) * model; // no lookat
-
-		//mat4 model = make_mat4_rotate(vec3 {0, 0, 1}, 3.1415);
-		//model = make_mat4_rotate(vec3 {0, 1, 0}, 0.5) * model;
-		//model = make_mat4_translate( vec3 {0.0, 0.8, -2.0f}) * model;
-		//
-		//mat4 view = make_mat4_view( vec3 {0, -0.5f, -1.0f}, vec3 {0, -0.5f, 0}, vec3 {0, 1.0f,  0});
-		//mat4 model = make_mat4_identy();
-		mat4 view = make_mat4_identy();
-
-		float winsize = 1.0 / 2.5;
-		mat4 proj = make_mat4_projection(winsize, -winsize, winsize, -winsize, 1, 3);
-		shader.pos_transf = proj * (view * model);
-
-		shader.norm_transf = transpose(inverse(shader.pos_transf));
-		shader.screen_transf.set(0, 0, z_test.fb.xres - 1,
-					 z_test.fb.xres - 1, -2000, 2000);
+		uint32_t delta = z_test.fb.xres - z_test.fb.yres;
+		delta = delta / 2;
+		shader.screen_transf.set(0, 0,
+					 z_test.fb.xres - 1,
+					 z_test.fb.yres - 1, 5000, -5000);
 	}
 
 	void load_data()
@@ -203,12 +210,8 @@ struct tr_pipeline {
 
 	void process()
 	{
-		//int i = 0;
-		for (auto const &v : vertex_buf) {
-		//	if (i++ == 3)
-		//		 break;
+		for (auto const &v : vertex_buf)
 			vshader_buf.push_back(shader.vertex_shader(v));
-		}
 
 		for (std::size_t i = 0; i < vshader_buf.size(); i += 3) {
 			vec3 tr_vec[3] = {    vshader_buf[i]    .screen_pos,
@@ -227,9 +230,9 @@ struct tr_pipeline {
 		interp_buf.clear();
 
 		for (std::size_t i = 0; i < z_test.zbuf.size(); ++i) {
-			vertex vert = z_test.zbuf[i].vert;
-			if (vert.pos.z != z_test.free_depth) {
-				z_test.fb.buf[i] = shader.fragment_shader(vert);
+			tr_z_test::zbuf_elem e = z_test.zbuf[i];
+			if (e.depth != z_test.free_depth) {
+				z_test.fb.buf[i] = shader.fragment_shader(e.vert);
 			}
 		}
 	}

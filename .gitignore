@@ -7,5 +7,3 @@
 !*.hpp
 !makefile
 !*.mk
-
-!*.obj
