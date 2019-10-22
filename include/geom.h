@@ -390,30 +390,3 @@ struct mat4 operator*(mat4 const &m1, mat4 const &m2)
 	}
 	return ret;
 }
-
-/* ************************************************************************** */
-
-struct viewport_transform {
-	vec3 scale, offs;
-	vec3 min_scr;
-	vec3 max_scr;
-
-	void set(uint32_t x_, uint32_t y_, uint32_t w_, uint32_t h_,
-		 int32_t f_, int32_t n_)
-	{
-		float x = x_, y = y_, w = w_, h = h_, f = f_, n = n_;
-		scale = vec3 { w/2,      h/2,     (f-n)/2 };
-		offs  = vec3 { x + w/2,  y + h/2, (f+n)/2 };
-
-		min_scr = offs - scale;
-		max_scr = offs + scale;
-	}
-
-	inline vec3 operator()(vec3 const &v) const
-	{
-		vec3 ret;
-		for (int i = 0; i < 3; ++i)
-			ret[i] = v[i] * scale[i] + offs[i];
-		return ret;
-	}
-};

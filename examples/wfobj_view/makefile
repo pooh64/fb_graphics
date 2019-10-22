@@ -1,3 +1,3 @@
-example := wfobj_tri
+example := wfobj_view
 
 include ../template.mk
