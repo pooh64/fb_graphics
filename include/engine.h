@@ -5,6 +5,7 @@
 #include <include/wfobj.h>
 
 #include <vector>
+#include <cassert>
 
 struct window {
 	uint32_t x, y, w, h, f, n;
@@ -51,14 +52,15 @@ struct viewport_transform {
 
 struct tr_zbuffer
 {
-	const float free_depth = std::numeric_limits<float>::max();
-
+	float const free_depth = std::numeric_limits<float>::max();
 	struct elem {
+	//	uint32_t x;
 		vertex vtx;
 		float depth;
 	};
 
 	window wnd;
+	//std::vector<std::vector<elem>> buf;
 	std::vector<elem> buf;
 
 	void set_window(window const &_wnd)
@@ -69,8 +71,12 @@ struct tr_zbuffer
 
 	void clear()
 	{
-		for (auto &e : buf)
+		for (auto &e : buf) {
+			e.vtx.tex = { 0, 0};
+			e.vtx.norm = { 1, 0, 0 };
+			e.vtx.pos = { 0, 0, 0 };
 			e.depth = free_depth;
+		}
 	}
 
 	void add(uint32_t x, uint32_t y, float depth, vertex const &vtx)
@@ -140,16 +146,17 @@ struct tr_rasterizer {
 		vec2 max_f{std::max(tr[0].x, std::max(tr[1].x, tr[2].x)),
 			   std::max(tr[0].y, std::max(tr[1].y, tr[2].y))};
 
-		min_f = {std::max(min_f.x, scr_tr.min_scr.x),
-			 std::max(min_f.y, scr_tr.min_scr.y)};
+		min_f = {std::max(min_f.x, scr_tr.min_scr.x + 0.5f),
+			 std::max(min_f.y, scr_tr.min_scr.y + 0.5f)};
 
-		max_f = {std::min(max_f.x, scr_tr.max_scr.x - 0.5f),
-			 std::min(max_f.y, scr_tr.max_scr.y - 0.5f)};
+		max_f = {std::min(max_f.x, scr_tr.max_scr.x + 0.5f),
+			 std::min(max_f.y, scr_tr.max_scr.y + 0.5f)};
 
 		vec2 r0 = vec2 { tr[0].x, tr[0].y };
 
 		for (int32_t y = min_f.y; y <= max_f.y; ++y) {
 			for (int32_t x = min_f.x; x <= max_f.x; ++x) {
+				//assert((x >= 0) && (y >= 0));
 				vec2 r_rel = vec2{float(x), float(y)} - r0;
 				float det1 = r_rel.x * d2.y - r_rel.y * d2.x;
 				float det2 = d1.x * r_rel.y - d1.y * r_rel.x;
@@ -259,6 +266,7 @@ struct tr_pipeline {
 
 		zbuffer.clear();
 		for (auto const &e : interp_buf) {
+			//assert((e.scr_pos.x >= 0) && (e.scr_pos.y >= 0));
 			uint32_t x = e.scr_pos.x + 0.5f;
 			uint32_t y = e.scr_pos.y + 0.5f;
 			float depth = e.scr_pos.z;

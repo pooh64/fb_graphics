@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 	}
 
 	window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
-		       .f = 1000, .n = 0 };
+		       .f = 1000, .n = 10 };
 	tr_pipeline pipeline(wnd);
 	pipeline.load_mesh(model);
 
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 			pipeline.render(fb.buf);
 			fb.update();
 		}
-		usleep(1024 * 1024 / 60);
+		// usleep(1024 * 1024 / 60);
 	}
 
 	return 0;

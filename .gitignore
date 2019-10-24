@@ -7,3 +7,5 @@
 !*.hpp
 !makefile
 !*.mk
+
+!perf.txt

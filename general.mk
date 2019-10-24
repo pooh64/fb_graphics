@@ -8,8 +8,8 @@ LDFLAGS :=
 CPPFLAGS := -g -I$(SELF_DIR) -std=gnu++17 -Ofast -march=native -mtune=native -mavx -ftree-vectorize
 # CPPFLAGS += -frename-registers -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math
 
-# CPPFLAGS += -fsanitize=sanitize -g
-# LDFLAGS +=  -fsanitize=sanitize
+# CPPFLAGS += -fsanitize=address -g
+# LDFLAGS +=  -fsanitize=address
 
 OBJDIR := $(SELF_DIR)/obj
 LIBDIR := $(SELF_DIR)/lib
