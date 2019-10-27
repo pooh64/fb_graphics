@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 	tr_pipeline_obj obj;
 	obj.load_mesh(model);
 	window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
-		       .f = 1000, .n = 10 };
+		       .f = 100, .n = 1 };
 	obj.set_window(wnd);
 
 	tr_pipeline pipeline;
@@ -79,10 +79,11 @@ int main(int argc, char *argv[])
 			yang -= int8_t(ev.dx) * rot_scale;
 			xang += int8_t(ev.dy) * rot_scale;
 			obj.set_view(xang, yang, pos);
+			fb.clear();
 			pipeline.render(fb.buf);
 			fb.update();
 		}
-		usleep(1024 * 1024 / 6);
+		usleep(1024 * 1024 / 60);
 	}
 
 	return 0;

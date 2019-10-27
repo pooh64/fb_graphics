@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <vector>
 #include <array>
 
@@ -71,7 +72,7 @@ struct tr_pipeline {
 		std::vector<std::array<def_shader::vs_out, 3>> vshader_buf;
 		//std::vector<zb_out> zbuf_buf;
 	};
-	std::vector<obj_entry> obj_buf; // maintain rendeting list
+	std::vector<obj_entry> obj_buf; // maintain rendering list
 
 	void set_window(window const &wnd)
 	{
@@ -88,7 +89,6 @@ struct tr_pipeline {
 		render_to_cbuf(cbuf);
 		for (auto &e : obj_buf)
 			e.vshader_buf.clear();
-		pl_zbuf.clear();
 	}
 
 private:
@@ -139,7 +139,7 @@ private:
 			}
 		}
 
-		for (auto line : rast_buf)
+		for (auto &line : rast_buf)
 			line.clear();
 	}
 
@@ -160,6 +160,7 @@ private:
 			for (uint32_t x = 0; x < zbuf_w; ++x) {
 				uint32_t ind = x + zbuf_w * y;
 				tr_zbuffer::elem fr = pl_zbuf.buf[ind];
+				pl_zbuf.buf[ind].depth = tr_zbuffer::free_depth;
 				if (fr.depth == tr_zbuffer::free_depth)
 					continue;
 				cbuf[ind] = render_fragment(fr);
