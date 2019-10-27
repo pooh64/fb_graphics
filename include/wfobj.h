@@ -6,12 +6,6 @@
 #include <include/geom.h>
 
 struct mesh {
-	struct vertex {
-		vec3 pos;
-		vec2 tex;
-		vec3 norm;
-	};
-
 	std::vector<vertex> verts;
 	std::vector<std::size_t> inds;
 };

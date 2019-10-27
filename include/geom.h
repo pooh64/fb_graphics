@@ -390,3 +390,47 @@ struct mat4 operator*(mat4 const &m1, mat4 const &m2)
 	}
 	return ret;
 }
+
+/* ************************************************************************** */
+
+struct window {
+	uint32_t x, y, w, h, f, n;
+};
+
+struct vertex
+{
+	vec3 pos;
+	vec2 tex;
+	vec3 norm;
+};
+
+struct viewport_transform {
+	vec3 scale, offs;
+	vec3 min_scr;
+	vec3 max_scr;
+
+	inline void set_window(window const &wnd)
+	{
+		float x = wnd.x, y = wnd.y, w = wnd.w, h = wnd.h,
+		      f = wnd.f, n = wnd.n;
+
+		scale = vec3 { w/2,     h/2,     (f-n)/2 };
+		offs  = vec3 { x + w/2, y + h/2, (f+n)/2 };
+
+		min_scr = offs - scale;
+		max_scr = offs + scale;
+	}
+
+	inline vec3 operator()(vec3 const &v) const
+	{
+		vec3 ret;
+		for (int i = 0; i < 3; ++i)
+			ret[i] = v[i] * scale[i] + offs[i];
+		return ret;
+	}
+};
+
+inline vec3 vec3_reinterp(vec4 const &v)
+{
+	return vec3 {v[0], v[1], v[2]};
+}

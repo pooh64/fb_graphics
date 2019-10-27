@@ -9,6 +9,13 @@ extern "C"
 #include <unistd.h>
 };
 
+/*
+int main(int argc, char *argv[])
+{
+	return 0;
+}
+*/
+
 void perf(tr_pipeline &pipeline, fbuffer &fb)
 {
 	const int cycles = 100;
@@ -25,6 +32,7 @@ void perf(tr_pipeline &pipeline, fbuffer &fb)
 	std::cout << double(cycles) / double(end_time - start_time)
 		     * CLOCKS_PER_SEC << " fps\n";
 }
+
 
 int main(int argc, char *argv[])
 {
@@ -44,20 +52,25 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	tr_pipeline_obj obj;
+	obj.load_mesh(model);
 	window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
 		       .f = 1000, .n = 10 };
-	tr_pipeline pipeline(wnd);
-	pipeline.load_mesh(model);
+	obj.set_window(wnd);
+
+	tr_pipeline pipeline;
+	pipeline.set_window(wnd);
+	pipeline.obj_buf.push_back(tr_pipeline::obj_entry {.ptr = &obj});
 
 	if (argc == 3) {
-		pipeline.set_view(3.1415 * 1.45, 3.1415 * 0.30, atof(argv[2]));
+		obj.set_view(3.1415 * 1.45, 3.1415 * 0.30, atof(argv[2]));
 		perf(pipeline, fb);
 		return 0;
 	}
 
 	float pos, xang = 3.1415, yang = 0;
 	std::cin >> pos;
-	pipeline.set_view(xang, yang, pos);
+	obj.set_view(xang, yang, pos);
 
 	while (1) {
 		mouse::event ev;
@@ -65,12 +78,11 @@ int main(int argc, char *argv[])
 		if (ms.poll(ev)) {
 			yang -= int8_t(ev.dx) * rot_scale;
 			xang += int8_t(ev.dy) * rot_scale;
-			pipeline.set_view(xang, yang, pos);
-			fb.clear();
+			obj.set_view(xang, yang, pos);
 			pipeline.render(fb.buf);
 			fb.update();
 		}
-		// usleep(1024 * 1024 / 60);
+		usleep(1024 * 1024 / 6);
 	}
 
 	return 0;
