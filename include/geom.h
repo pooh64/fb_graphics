@@ -1,6 +1,10 @@
 #pragma once
 
 #include <cmath>
+#include <xmmintrin.h>
+#include <smmintrin.h>
+
+#define GEOM_XMM
 
 struct vec2 {
 	union {
@@ -157,12 +161,13 @@ struct vec3 operator*(float const a, vec3 const &v)
 
 /* ************************************************************************** */
 
-struct vec4 {
+struct alignas(16) vec4 {
 	union {
 		struct {
 			float x, y, z, w;
 		};
 		float data[4];
+		__m128 ymm;
 	};
 
 	float &operator[](int i) noexcept
@@ -175,6 +180,42 @@ struct vec4 {
 		return data[i];
 	}
 };
+
+vec4 operator+(vec4 const &v1, vec4 const &v2)
+{
+	vec4 res;
+#ifdef GEOM_XMM
+	res.ymm = _mm_add_ps(v1.ymm, v2.ymm);
+#else
+	for (int i = 0; i < 4; ++i)
+		res[i] = v1[i] + v2[i];
+#endif
+	return res;
+}
+
+vec4 operator*(float const a, vec4 const &v)
+{
+	vec4 ret;
+#ifdef GEOM_XMM
+	ret.ymm = _mm_mul_ps(v.ymm, _mm_set1_ps(a));
+#else
+	for (int i = 0; i < 4; ++i)
+		ret[i] = a * v[i];
+#endif
+	return ret;
+}
+
+float dot_prod(vec4 const &v1, vec4 const &v2)
+{
+#ifdef GEOM_XMM
+	return _mm_cvtss_f32(_mm_dp_ps(v1.ymm, v2.ymm, 0b11111111));
+#else
+	float accum = 0;
+	for (int i = 0; i < 4; ++i)
+		accum += v1[i] * v2[i];
+	return accum;
+#endif
+}
 
 /* ************************************************************************** */
 
@@ -430,8 +471,9 @@ struct viewport_transform {
 	}
 };
 
-inline vec3 vec3_reinterp(vec4 const &v)
+inline vec3 reinterp_vec3(vec4 const &v)
 {
 	return vec3 {v[0], v[1], v[2]};
 }
 
+/* ************************************************************************** */

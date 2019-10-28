@@ -3,20 +3,13 @@
 #include <vector>
 #include <cassert>
 
-template<typename _rz_coord, typename _rz_baryc>
+template<typename _rz_in, typename _rz_out>
 struct rasterizer {
 protected:
 	uint32_t wnd_min_x, wnd_max_x, wnd_min_y, wnd_max_y;
 public:
-	using rz_coord = _rz_coord;
-	using rz_baryc = _rz_baryc;
-
-	struct rz_out {
-		uint32_t x;
-		uint32_t pid;
-		rz_baryc bc;
-		float depth;
-	};
+	using rz_in  = _rz_in;
+	using rz_out = _rz_out;
 
 	void set_window(window const &wnd)
 	{
@@ -26,13 +19,27 @@ public:
 		wnd_max_y = wnd.y + wnd.h - 1;
 	}
 
-	virtual void rasterize(rz_coord const &, uint32_t,
-		       std::vector<std::vector<rz_out>> &) = 0;
+	virtual void rasterize(rz_in const &, uint32_t,
+			       std::vector<std::vector<rz_out>> &) = 0;
 };
 
-struct tr_rasterizer final: public rasterizer<vec3[3], float[3]> {
+
+struct tr_rz_out {
+	union {
+		struct {
+			float bc[3];
+			float depth;
+		};
+		vec4 sse_data;
+	};
+	uint32_t x;
+	uint32_t pid;
+};
+
+struct tr_rasterizer final: public rasterizer<vec3[3], tr_rz_out> {
 public:
-	void rasterize(rz_coord const &tr, uint32_t pid,
+
+	void rasterize(rz_in const &tr, uint32_t pid,
 		       std::vector<std::vector<rz_out>> &buf) override
 	{
 		vec3 d1_3 = tr[1] - tr[0];
@@ -54,80 +61,43 @@ public:
 		uint32_t max_y = std::min(uint32_t(max_r.y), wnd_max_y);
 
 		vec2 r0 = vec2 { tr[0].x, tr[0].y };
-		vec3 depth_vec = { tr[0].z, tr[1].z, tr[2].z };
 		rz_out out;
 
-define RAST_HACK
+#define RAST_HACK
 #ifdef RAST_HACK
-//#define RAST_HACK_MORE
+		vec4 depth_vec = { tr[0].z, tr[1].z, tr[2].z, 0 };
 		vec2 rel_0 = vec2{float(min_x), float(min_y)} - r0;
-		float c_1_x =  d2.y / det;
-		float c_1_y = -d2.x / det;
-		float c_2_x = -d1.y / det;
-		float c_2_y =  d1.x / det;
-		float c_0_x = -c_1_x - c_2_x;
-		float c_0_y = -c_1_y - c_2_y;
+		float bc_d1_x =  d2.y / det;
+		float bc_d1_y = -d2.x / det;
+		float bc_d2_x = -d1.y / det;
+		float bc_d2_y =  d1.x / det;
+		float bc_d0_x = -bc_d1_x - bc_d2_x;
+		float bc_d0_y = -bc_d1_y - bc_d2_y;
 
-		vec3 bc_dx = { c_0_x, c_1_x, c_2_x };
-		vec3 bc_dy = { c_0_y, c_1_y, c_2_y };
+		vec4 pack_dx = { bc_d0_x, bc_d1_x, bc_d2_x, 0 };
+		pack_dx[3] = dot_prod(pack_dx, depth_vec);
+		vec4 pack_dy = { bc_d0_y, bc_d1_y, bc_d2_y, 0 };
+		pack_dy[3] = dot_prod(pack_dy, depth_vec);
 
-		vec3 bc_0;
-		bc_0[1] = c_1_x * rel_0.x + c_1_y * rel_0.y,
-		bc_0[2] = c_2_x * rel_0.x + c_2_y * rel_0.y;
-		bc_0[0] = 1 - bc_0[1] - bc_0[2];
-		vec3 bc = bc_0;
-#ifndef RAST_HACK_MORE
+		vec4 pack_0 { 1, 0, 0, tr[0].z };
+		pack_0 = pack_0 + rel_0.x * pack_dx + rel_0.y * pack_dy;
+
 		for (uint32_t y = min_y; y <= max_y; ++y) {
-			bc = bc_0 + (y - min_y) * bc_dy;
+			vec4 pack = pack_0;
 			for (uint32_t x = min_x; x <= max_x; ++x) {
-				if (bc[0] >= 0 && bc[1] >= 0 && bc[2] >= 0) {
-					out.depth = dot_prod(bc, depth_vec);
+				if (pack[0] >= 0 && pack[1] >= 0 &&
+				    pack[2] >= 0 && pack[3] >= -1.0f) {
 					out.x = x;
 					out.pid = pid;
-					out.bc[0] = bc[0];
-					out.bc[1] = bc[1];
-					out.bc[2] = bc[2];
+					out.sse_data = pack;
 					buf[y].push_back(out);
 				}
-				bc = bc + bc_dx;
+				pack = pack + pack_dx;
 			}
+			pack_0 = pack_0 + pack_dy;
 		}
-#endif
-#ifdef RAST_HACK_MORE
-		for (uint32_t y = min_y; y <= max_y; /* nothing */) {
-			for (uint32_t x = min_x; x <= max_x; ++x) {
-				if (bc[0] >= 0 && bc[1] >= 0 && bc[2] >= 0) {
-					out.depth = dot_prod(bc, depth_vec);
-					out.x = x;
-					out.pid = pid;
-					out.bc[0] = bc[0];
-					out.bc[1] = bc[1];
-					out.bc[2] = bc[2];
-					buf[y].push_back(out);
-				}
-				bc = bc + bc_dx;
-			}
-			bc = bc + bc_dy;
-			++y;
-			for (uint32_t x = max_x; x >= min_x; --x) {
-				if (bc[0] >= 0 && bc[1] >= 0 && bc[2] >= 0) {
-					out.depth = dot_prod(bc, depth_vec);
-					out.x = x;
-					out.pid = pid;
-					out.bc[0] = bc[0];
-					out.bc[1] = bc[1];
-					out.bc[2] = bc[2];
-					buf[y].push_back(out);
-				}
-				bc = bc - bc_dx;
-			}
-			bc = bc + bc_dy;
-			++y;
-		}
-
-#endif
-#endif
-#ifndef RAST_HACK
+#else
+		vec3 depth_vec = { tr[0].z, tr[1].z, tr[2].z };
 		for (uint32_t y = min_y; y <= max_y; ++y) {
 			for (uint32_t x = min_x; x <= max_x; ++x) {
 				vec2 rel = vec2{float(x), float(y)} - r0;

@@ -122,7 +122,7 @@ private:
 			auto const &vs_pr = entry.vshader_buf[pid];
 			vec3 scr_pos[3];
 			for (int i = 0; i < 3; ++i)
-				scr_pos[i] = vec3_reinterp(vs_pr[i].pos);
+				scr_pos[i] = reinterp_vec3(vs_pr[i].pos);
 			pl_rast.rasterize(scr_pos, pid, rast_buf);
 		}
 
