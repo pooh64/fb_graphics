@@ -1,2 +1,0 @@
-Current version:
-	wfobj-view-perf: Su-27 pos=1400  12.627 fps (no textures)

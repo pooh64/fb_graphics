@@ -434,3 +434,4 @@ inline vec3 vec3_reinterp(vec4 const &v)
 {
 	return vec3 {v[0], v[1], v[2]};
 }
+
