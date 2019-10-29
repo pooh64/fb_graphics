@@ -2,7 +2,7 @@ SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
 CXX := g++
 
-LDFLAGS :=
+LDFLAGS := -pthread
 
 # CPPFLAGS := -std=gnu++17 -g -O3 -mavx -I$(SELF_DIR)
 CPPFLAGS := -g -I$(SELF_DIR) -std=gnu++17 -Ofast -march=native -mtune=native -mavx -ftree-vectorize

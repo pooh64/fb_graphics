@@ -59,18 +59,9 @@ struct tr_pipeline_obj {
 
 
 struct tr_pipeline {
-/*
-	struct zb_out {
-		uint32_t x;
-		uint32_t pid;
-		float[3] bc;
-	};
-*/
-
 	struct obj_entry {
 		tr_pipeline_obj *ptr;
 		std::vector<std::array<def_shader::vs_out, 3>> vshader_buf;
-		//std::vector<zb_out> zbuf_buf;
 	};
 	std::vector<obj_entry> obj_buf; // maintain rendering list
 
@@ -78,7 +69,7 @@ struct tr_pipeline {
 	{
 		pl_rast.set_window(wnd);
 		pl_zbuf.set_window(wnd);
-		rast_buf.resize(wnd.h); // ?reserve
+		rast_buf.resize(wnd.h);
 		pl_zbuf.clear();
 	}
 
@@ -92,12 +83,12 @@ struct tr_pipeline {
 	}
 
 private:
-	std::vector<std::vector<tr_rasterizer::rz_out>> rast_buf;
-
 	def_shader	pl_shader;
 	tr_rasterizer	pl_rast;
 	tr_zbuffer	pl_zbuf;
 	tr_interpolator	pl_interp;
+
+	std::vector<std::vector<tr_rasterizer::rz_out>> rast_buf;
 
 	void render_to_zbuf(uint32_t oid)
 	{
@@ -130,11 +121,11 @@ private:
 		for (uint32_t y = 0; y < rast_buf.size(); ++y) {
 			for (auto const &re : rast_buf[y]) {
 				tr_zbuffer::elem ze = tr_zbuffer::elem {
+				        .bc    = {re.bc[0], re.bc[1], re.bc[2]},
 					.depth = re.depth,
 					.x     = re.x,
 					.pid   = re.pid,
-					.oid   = oid,
-					.bc    {re.bc[0], re.bc[1], re.bc[2]}};
+					.oid   = oid };
 				pl_zbuf.add_elem(y, ze);
 			}
 		}
@@ -157,13 +148,12 @@ private:
 		uint32_t zbuf_w = pl_zbuf.wnd.w;
 		uint32_t zbuf_h = pl_zbuf.wnd.h;
 		for (uint32_t y = 0; y < zbuf_h; ++y) {
-			for (uint32_t x = 0; x < zbuf_w; ++x) {
-				uint32_t ind = x + zbuf_w * y;
-				tr_zbuffer::elem fr = pl_zbuf.buf[ind];
+			uint32_t ind = y * zbuf_w;
+			for (uint32_t x = 0; x < zbuf_w; ++x, ++ind) {
+				tr_zbuffer::elem e = pl_zbuf.buf[ind];
 				pl_zbuf.buf[ind].depth = tr_zbuffer::free_depth;
-				if (fr.depth == tr_zbuffer::free_depth)
-					continue;
-				cbuf[ind] = render_fragment(fr);
+				if (e.depth != tr_zbuffer::free_depth)
+					cbuf[ind] = render_fragment(e);
 			}
 		}
 	}
