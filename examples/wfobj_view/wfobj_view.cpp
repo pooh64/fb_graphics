@@ -27,14 +27,23 @@ void perf(tr_pipeline &pipeline, fbuffer &fb)
 		     * CLOCKS_PER_SEC << " fps\n";
 }
 
+
 int main(int argc, char *argv[])
 {
-	if (argc != 2 && argc != 3)
+	if (argc != 3 && argc != 4)
 		return 1;
+
+	char const *obj_path = argv[1];
+	char const *mtl_path = argv[2];
+	bool perf_flag = false;
+	float perf_pos = 0;
+	if (argc == 4) {
+		perf_flag = true;
+		perf_pos = atof(argv[3]);
+	}
 
 	fbuffer fb;
 	mouse ms;
-
 	if (fb.init("/dev/fb0") < 0) {
 		perror("fb0");
 		return 1;
@@ -43,15 +52,15 @@ int main(int argc, char *argv[])
 		perror("mouse");
 		return 1;
 	}
-
-
 	window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
-	 	       .f = 100, .n = 1 };
-
+	 	       .f = 1000, .n = 0 };
 	std::vector<wfobj_entry> model_buf;
 	std::vector<tr_pipeline_obj> trobj_buf;
-	import_wfobj(argv[1], model_buf);
 
+	/* Import model */
+	import_wfobj(obj_path, mtl_path, model_buf);
+
+	/* Create buffer of maintainable tr objects */
 	for (auto const &model : model_buf) {
 #if 0
 		std::cout << model.name << std::endl;
@@ -64,19 +73,19 @@ int main(int argc, char *argv[])
 		tr_pipeline_obj tmp;
 		tmp.set_wfobj_entry(model);
 		tmp.set_window(wnd);
-		if (argc == 3)
-			tmp.set_view(3.1415 * 1.45, 3.1415 * 0.30,
-					atof(argv[2]));
+		if (perf_flag)
+			tmp.set_view(3.1415 * 1.45, 3.1415 * 0.30, perf_pos);
 		trobj_buf.push_back(std::move(tmp));
 	}
 
+	/* Create pipeline and pass tr objects */
 	tr_pipeline pipeline;
 	pipeline.set_window(wnd);
 	for (auto &obj : trobj_buf)
 		pipeline.obj_buf.push_back(
 				tr_pipeline::obj_entry {.ptr = &obj});
 
-	if (argc == 3) {
+	if (perf_flag) {
 		perf(pipeline, fb);
 		return 0;
 	}

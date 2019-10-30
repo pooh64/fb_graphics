@@ -17,6 +17,7 @@ struct tr_pipeline_obj {
 	mat4 norm_mat;
 	std::vector<std::array<vertex, 3>> prim_buf;
 	window wnd;
+	ppm_img const *tex_img;
 
 	void set_wfobj_entry(wfobj_entry const &e)
 	{
@@ -29,6 +30,7 @@ struct tr_pipeline_obj {
 			};
 			prim_buf.push_back(vtx);
 		}
+		tex_img = &e.mtl.tex_img;
 	}
 
 	void set_view(float xang, float yang, float pos)
@@ -53,14 +55,19 @@ struct tr_pipeline_obj {
 		float winsize = 1.0;
 		float ratio = float (wnd.w) / wnd.h;
 		proj_mat = make_mat4_projection(winsize * ratio,
-			-winsize * ratio, winsize, -winsize, wnd.n, wnd.f);
+			-winsize * ratio, winsize, -winsize, winsize, 0);
 	}
 };
 
 struct tr_pipeline {
+	tex_shader	pl_shader;
+	tr_rasterizer	pl_rast;
+	tr_zbuffer	pl_zbuf;
+	tr_interpolator	pl_interp;
+
 	struct obj_entry {
 		tr_pipeline_obj *ptr;
-		std::vector<std::array<def_shader::vs_out, 3>> vshader_buf;
+		std::vector<std::array<tex_shader::vs_out, 3>> vshader_buf;
 	};
 	std::vector<obj_entry> obj_buf; // maintain rendering list
 
@@ -82,10 +89,6 @@ struct tr_pipeline {
 	}
 
 private:
-	def_shader	pl_shader;
-	tr_rasterizer	pl_rast;
-	tr_zbuffer	pl_zbuf;
-	tr_interpolator	pl_interp;
 
 	std::vector<std::vector<tr_rasterizer::rz_out>> rast_buf;
 
@@ -99,9 +102,12 @@ private:
 		pl_shader.norm_mat = obj.norm_mat;
 		pl_shader.set_window(obj.wnd);
 
+		// TEMPORARY!!!!!!!!!!!
+		pl_shader.tex_img = obj_buf[0].ptr->tex_img;
+
 		// vshading
 		for (auto const &pr : obj.prim_buf) {
-			std::array<def_shader::vs_out, 3> vs_pr;
+			std::array<tex_shader::vs_out, 3> vs_pr;
 			for (int i = 0; i < 3; ++i)
 				vs_pr[i] = pl_shader.vshader(pr[i]);
 			entry.vshader_buf.push_back(vs_pr);

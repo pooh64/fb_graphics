@@ -47,7 +47,7 @@ public:
 		vec2 d2 = { d2_3.x, d2_3.y };
 
 		float det = d1.x * d2.y - d1.y * d2.x;
-		if (det <= 0)
+		if (det == 0)
 			return;
 
 	 	vec2 min_r{std::min(tr[0].x, std::min(tr[1].x, tr[2].x)),
@@ -85,7 +85,7 @@ public:
 			vec4 pack = pack_0;
 			for (uint32_t x = min_x; x <= max_x; ++x) {
 				if (pack[0] >= 0 && pack[1] >= 0 &&
-				    pack[2] >= 0 && pack[3] >= -1.0f) {
+				    pack[2] >= 0 && pack[3] >= 0) {
 					out.x = x;
 					out.pid = pid;
 					out.sse_data = pack;
