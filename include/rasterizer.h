@@ -23,7 +23,6 @@ public:
 			       std::vector<std::vector<rz_out>> &) = 0;
 };
 
-
 struct tr_rz_out {
 	union {
 		struct {

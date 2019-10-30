@@ -3,18 +3,12 @@
 #include <include/engine.h>
 #include <iostream>
 #include <ctime>
+#include <utility>
 
 extern "C"
 {
 #include <unistd.h>
 };
-
-/*
-int main(int argc, char *argv[])
-{
-	return 0;
-}
-*/
 
 void perf(tr_pipeline &pipeline, fbuffer &fb)
 {
@@ -33,13 +27,11 @@ void perf(tr_pipeline &pipeline, fbuffer &fb)
 		     * CLOCKS_PER_SEC << " fps\n";
 }
 
-
 int main(int argc, char *argv[])
 {
 	if (argc != 2 && argc != 3)
 		return 1;
 
-	mesh model = import_obj(argv[1]);
 	fbuffer fb;
 	mouse ms;
 
@@ -52,25 +44,45 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	tr_pipeline_obj obj;
-	obj.load_mesh(model);
+
 	window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
-		       .f = 100, .n = 1 };
-	obj.set_window(wnd);
+	 	       .f = 100, .n = 1 };
+
+	std::vector<wfobj_entry> model_buf;
+	std::vector<tr_pipeline_obj> trobj_buf;
+	import_wfobj(argv[1], model_buf);
+
+	for (auto const &model : model_buf) {
+#if 0
+		std::cout << model.name << std::endl;
+		int flag = 0;
+		std::cin >> flag;
+		if (!flag)
+			continue;
+#endif
+
+		tr_pipeline_obj tmp;
+		tmp.set_wfobj_entry(model);
+		tmp.set_window(wnd);
+		if (argc == 3)
+			tmp.set_view(3.1415 * 1.45, 3.1415 * 0.30,
+					atof(argv[2]));
+		trobj_buf.push_back(std::move(tmp));
+	}
 
 	tr_pipeline pipeline;
 	pipeline.set_window(wnd);
-	pipeline.obj_buf.push_back(tr_pipeline::obj_entry {.ptr = &obj});
+	for (auto &obj : trobj_buf)
+		pipeline.obj_buf.push_back(
+				tr_pipeline::obj_entry {.ptr = &obj});
 
 	if (argc == 3) {
-		obj.set_view(3.1415 * 1.45, 3.1415 * 0.30, atof(argv[2]));
 		perf(pipeline, fb);
 		return 0;
 	}
 
 	float pos, xang = 3.1415, yang = 0;
 	std::cin >> pos;
-	obj.set_view(xang, yang, pos);
 
 	while (1) {
 		mouse::event ev;
@@ -78,12 +90,13 @@ int main(int argc, char *argv[])
 		if (ms.poll(ev)) {
 			yang -= int8_t(ev.dx) * rot_scale;
 			xang += int8_t(ev.dy) * rot_scale;
-			obj.set_view(xang, yang, pos);
+			for (auto &obj : trobj_buf)
+				obj.set_view(xang, yang, pos);
 			fb.clear();
 			pipeline.render(fb.buf);
 			fb.update();
 		}
-		usleep(1024 * 1024 / 60);
+		//usleep(1024 * 1024 / 60);
 	}
 
 	return 0;

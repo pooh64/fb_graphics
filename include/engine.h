@@ -16,16 +16,16 @@ struct tr_pipeline_obj {
 	mat4 proj_mat;
 	mat4 norm_mat;
 	std::vector<std::array<vertex, 3>> prim_buf;
-	void *tex_img;
 	window wnd;
 
-	void load_mesh(mesh const &data)
+	void set_wfobj_entry(wfobj_entry const &e)
 	{
-		for (std::size_t n = 0; n < data.inds.size(); n += 3) {
+		for (std::size_t n = 0; n < e.mesh.inds.size(); n += 3) {
+			wfobj_mesh const &m = e.mesh;
 			std::array<vertex, 3> vtx = {
-				data.verts[data.inds[n]],
-				data.verts[data.inds[n + 1]],
-				data.verts[data.inds[n + 2]]
+				m.verts[m.inds[n]],
+				m.verts[m.inds[n + 1]],
+				m.verts[m.inds[n + 2]]
 			};
 			prim_buf.push_back(vtx);
 		}
@@ -56,7 +56,6 @@ struct tr_pipeline_obj {
 			-winsize * ratio, winsize, -winsize, wnd.n, wnd.f);
 	}
 };
-
 
 struct tr_pipeline {
 	struct obj_entry {
