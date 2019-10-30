@@ -300,7 +300,7 @@ inline mat4 make_mat4_rotate(vec3 const &v, float a)
 
 inline mat4 make_mat4_projection(float r, float l,
 				 float t, float b,
-				 float n, float f)
+				 float f, float n)
 {
 	mat4 ret = { 2*n/(r-l), 0,         (r+l)/(r-l),  0,
 		     0,         2*n/(t-b), (t+b)/(t-b),  0,
@@ -438,8 +438,7 @@ struct window {
 	uint32_t x, y, w, h, f, n;
 };
 
-struct vertex
-{
+struct vertex {
 	vec3 pos;
 	vec2 tex;
 	vec3 norm;

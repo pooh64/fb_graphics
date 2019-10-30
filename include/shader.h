@@ -82,8 +82,6 @@ public:
 		out.fs_vtx.norm = to_vec3(norm_mat * to_vec4(in.norm));
 		out.fs_vtx.tex 	= in.tex;
 
-		std::cout << in.pos.z << " " << out.fs_vtx.pos.z << " " << out.pos.z << std::endl;
-
 		return out;
 	}
 

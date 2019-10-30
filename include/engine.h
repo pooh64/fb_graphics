@@ -52,10 +52,15 @@ struct tr_pipeline_obj {
 	void set_window(window const &_wnd)
 	{
 		wnd = _wnd;
-		float winsize = 1.0;
+		float fov = 3.1415 / 2; // fov = 90deg
+		float far  = 1;
+		float near = 0.05;
+
+		float size = std::tan(fov / 2) * near;
+
 		float ratio = float (wnd.w) / wnd.h;
-		proj_mat = make_mat4_projection(winsize * ratio,
-			-winsize * ratio, winsize, -winsize, winsize, 0);
+		proj_mat = make_mat4_projection(size * ratio,
+			-size * ratio, size, -size, far, near);
 	}
 };
 
