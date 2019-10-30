@@ -58,7 +58,7 @@ public:
 	}
 };
 
-struct tex_shader final: public shader<vertex, vertex, fbuffer::color> {
+struct tex_highl_shader final: public shader<vertex, vertex, fbuffer::color> {
 private:
 	viewport_transform vp_tr;
 public:
@@ -87,21 +87,29 @@ public:
 
 	fs_out fshader(fs_in const &in) const override
 	{
+/*
+		vec3 light { 0, 0, 100000 };
+
+		vec3 light_dir = normalize(light - in.pos);
+		float dot = dot_prod(light_dir, in.norm);
+		dot = std::max((typeof(dot)) 0, dot);
+		float intens = 0.2 + 0.5f * dot + 0.2f * std::pow(dot, 32);
+*/
+		float intens = 1;
+
 		uint32_t w = tex_img->w;
 		uint32_t h = tex_img->h;
 
 		uint32_t x = (in.tex.x * w) + 0.5f;
-		uint32_t y = (in.tex.y * h) + 0.5f;
+		uint32_t y = h - (in.tex.y * h) + 0.5f;
 
-		//assert(in.tex.x >= 0);
-		//assert(in.tex.y >= 0);
 		ppm_color c = {0, 0, 0};
 		if (x <= w && y <= h)
 			c = tex_img->buf[x + w * y];
 		else
 			c.r = 255;
-		return fbuffer::color { c.b,
-					c.g,
-					c.r, 255 };
+		return fbuffer::color { uint8_t(c.b * intens),
+					uint8_t(c.g * intens),
+					uint8_t(c.r * intens), 255 };
 	}
 };
