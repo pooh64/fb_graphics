@@ -8,8 +8,8 @@
 #include <functional>
 #include <cassert>
 
-struct sync_threadpool_env {
-	friend struct sync_threadpool;
+struct SyncThreadpoolEnv {
+	friend struct SyncThreadpool;
 private:
 	unsigned n_threads;
 	std::vector<std::thread> pool;
@@ -32,7 +32,7 @@ private:
 
 	bool finish = false;
 
-	sync_threadpool_env()
+	SyncThreadpoolEnv()
 	{
 		n_done = 0;
 	}
@@ -68,21 +68,21 @@ private:
 	}
 };
 
-struct sync_threadpool {
+struct SyncThreadpool {
 private:
-	struct sync_threadpool_env env;
+	struct SyncThreadpoolEnv env;
 	bool running = false; /* Track run/wait completion */
 public:
-	sync_threadpool(unsigned _n_threads)
+	SyncThreadpool(unsigned _n_threads)
 	{
 		env.n_threads = _n_threads;
 
 		for (int i = 0; i < env.n_threads; ++i)
 			env.pool.push_back(std::thread(
-				&sync_threadpool_env::worker, &env));
+				&SyncThreadpoolEnv::worker, &env));
 	}
 
-	~sync_threadpool()
+	~SyncThreadpool()
 	{
 		if (running)
 			wait_completion();

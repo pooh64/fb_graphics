@@ -9,7 +9,7 @@ extern "C" {
 
 #include "include/fbuffer.h"
 
-int fbuffer::init(const char *path)
+int Fbuffer::Init(const char *path)
 {
 	void *map_region;
 
@@ -23,7 +23,7 @@ int fbuffer::init(const char *path)
 	if (::ioctl(fd, FBIOGET_FSCREENINFO, (fb_fix_screeninfo *)this) < 0)
 		goto handle_err_1;
 
-	buf = static_cast<color *>(std::calloc(xres * yres, sizeof(color)));
+	buf = new Color[xres * yres];
 	if (buf == NULL)
 		goto handle_err_1;
 
@@ -35,14 +35,14 @@ handle_err_0:
 	return -1;
 }
 
-int fbuffer::destroy()
+int Fbuffer::Destroy()
 {
-	free(buf);
+	delete[] buf;
 	return ::close(fd);
 }
 
-int fbuffer::update()
+int Fbuffer::Update()
 {
-	int rc = ::pwrite(fd, buf, xres * yres * sizeof(color), 0);
+	int rc = ::pwrite(fd, buf, xres * yres * sizeof(Color), 0);
 	return rc < 0 ? rc : 0;
 }

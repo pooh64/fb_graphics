@@ -10,16 +10,16 @@ extern "C"
 #include <unistd.h>
 };
 
-void perf(tr_pipeline &pipeline, fbuffer &fb)
+void perf(TrPipeline &pipeline, Fbuffer &fb)
 {
 	const int cycles = 100;
 	time_t start_time, end_time;
 
 	start_time = clock();
 	for (int i = 0; i < cycles; i++) {
-		fb.clear();
-		pipeline.render(fb.buf);
-		fb.update();
+		fb.Clear();
+		pipeline.Render(fb.buf);
+		fb.Update();
 	}
 	end_time = clock();
 
@@ -42,23 +42,26 @@ int main(int argc, char *argv[])
 		perf_pos = atof(argv[3]);
 	}
 
-	fbuffer fb;
-	mouse ms;
-	if (fb.init("/dev/fb0") < 0) {
+	Fbuffer fb;
+	Mouse ms;
+	if (fb.Init("/dev/fb0") < 0) {
 		perror("fb0");
 		return 1;
 	}
-	if (ms.init("/dev/input/mice") < 0) {
-		perror("mouse");
+	if (ms.Init("/dev/input/mice") < 0) {
+		perror("Mouse");
 		return 1;
 	}
-	window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
+	Window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
 	 	       .f = 1000, .n = 0 };
-	std::vector<wfobj_entry> model_buf;
-	std::vector<tr_pipeline_obj> trobj_buf;
+	std::vector<Wfobj> model_buf;
+	std::vector<TrPipelineObj> trobj_buf;
 
 	/* Import model */
-	import_wfobj(obj_path, mtl_path, model_buf);
+	if (ImportWfobj(obj_path, mtl_path, model_buf) < 0) {
+		std::cerr << "import_wrfobj failed\n";
+		return 1;
+	}
 
 	/* Create buffer of maintainable tr objects */
 	for (auto const &model : model_buf) {
@@ -69,21 +72,20 @@ int main(int argc, char *argv[])
 		if (!flag)
 			continue;
 #endif
-
-		tr_pipeline_obj tmp;
-		tmp.set_wfobj_entry(model);
-		tmp.set_window(wnd);
+		TrPipelineObj tmp;
+		tmp.SetWfobj(model);
+		tmp.SetWindow(wnd);
 		if (perf_flag)
-			tmp.set_view(3.1415 * 1.45, 3.1415 * 0.30, perf_pos);
+			tmp.SetView(3.1415 * 1.45, 3.1415 * 0.30, perf_pos);
 		trobj_buf.push_back(std::move(tmp));
 	}
 
 	/* Create pipeline and pass tr objects */
-	tr_pipeline pipeline;
-	pipeline.set_window(wnd);
+	TrPipeline pipeline;
+	pipeline.SetWindow(wnd);
 	for (auto &obj : trobj_buf)
 		pipeline.obj_buf.push_back(
-				tr_pipeline::obj_entry {.ptr = &obj});
+				TrPipeline::TrObj {.ptr = &obj});
 
 	if (perf_flag) {
 		perf(pipeline, fb);
@@ -94,16 +96,16 @@ int main(int argc, char *argv[])
 	std::cin >> pos;
 
 	while (1) {
-		mouse::event ev;
+		Mouse::Event ev;
 		const float rot_scale = 0.01;
-		if (ms.poll(ev)) {
+		if (ms.Poll(ev)) {
 			yang -= int8_t(ev.dx) * rot_scale;
 			xang += int8_t(ev.dy) * rot_scale;
 			for (auto &obj : trobj_buf)
-				obj.set_view(xang, yang, pos);
-			fb.clear();
-			pipeline.render(fb.buf);
-			fb.update();
+				obj.SetView(xang, yang, pos);
+			fb.Clear();
+			pipeline.Render(fb.buf);
+			fb.Update();
 		}
 		//usleep(1024 * 1024 / 60);
 	}

@@ -1,4 +1,4 @@
-#include <include/sync_threadpool.h>
+#include <include/syncthreadpool.h>
 
 #include <atomic>
 #include <cassert>
@@ -15,7 +15,7 @@ void my_task(int x)
 void test(int n)
 {
 	{
-		sync_threadpool tp(n);
+		SyncThreadpool tp(n);
 		my_counter = 0;
 
 		for (int i = 0; i < 10; ++i) {

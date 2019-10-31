@@ -1,16 +1,17 @@
 #pragma once
+
 #include <include/geom.h>
 #include <include/fbuffer.h>
 
 template<typename _zb_in, typename _elem>
-struct zbuffer {
+struct Zbuffer {
 	using zb_in = _zb_in;
 	using elem  = _elem;
 	float static constexpr free_depth = std::numeric_limits<float>::max();
-	window wnd;
+	Window wnd;
 	std::vector<elem> buf;
 
-	void set_window(window const &_wnd)
+	void set_Window(Window const &_wnd)
 	{
 		wnd = _wnd;
 		buf.resize(wnd.w * wnd.h);
@@ -25,7 +26,7 @@ struct zbuffer {
 	virtual void add_elem(uint32_t y, elem const &e) = 0;
 };
 
-struct tr_zbuffer_elem {
+struct TrZbuffer_elem {
 	float    bc[3];
 	float    depth;
 	uint32_t x;
@@ -33,7 +34,7 @@ struct tr_zbuffer_elem {
 	uint32_t oid;
 };
 
-struct tr_zbuffer final: public zbuffer<float[3], tr_zbuffer_elem> {
+struct TrZbuffer final: public Zbuffer<float[3], TrZbuffer_elem> {
 	void add_elem(uint32_t y, elem const &e) override
 	{
 		std::size_t ind = e.x + wnd.w * y;
