@@ -10,9 +10,8 @@ extern "C"
 #include <unistd.h>
 };
 
-void perf(TrPipeline &pipeline, Fbuffer &fb)
+void perf(TrPipeline &pipeline, Fbuffer &fb, unsigned cycles)
 {
-	const int cycles = 100;
 	time_t start_time, end_time;
 
 	start_time = clock();
@@ -30,16 +29,18 @@ void perf(TrPipeline &pipeline, Fbuffer &fb)
 
 int main(int argc, char *argv[])
 {
-	if (argc != 3 && argc != 4)
+	if (argc != 3 && argc != 5)
 		return 1;
 
 	char const *obj_path = argv[1];
 	char const *mtl_path = argv[2];
 	bool perf_flag = false;
 	float perf_pos = 0;
-	if (argc == 4) {
+	unsigned perf_cycles = 0;
+	if (argc == 5) {
 		perf_flag = true;
 		perf_pos = atof(argv[3]);
+		perf_cycles = atoi(argv[4]);
 	}
 
 	Fbuffer fb;
@@ -88,7 +89,7 @@ int main(int argc, char *argv[])
 				TrPipeline::TrObj {.ptr = &obj});
 
 	if (perf_flag) {
-		perf(pipeline, fb);
+		perf(pipeline, fb, perf_cycles);
 		return 0;
 	}
 

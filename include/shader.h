@@ -96,17 +96,22 @@ public:
 */
 		float intens = 1;
 
-		uint32_t w = tex_img->w;
-		uint32_t h = tex_img->h;
+		int32_t w = tex_img->w;
+		int32_t h = tex_img->h;
 
-		uint32_t x = (in.tex.x * w) + 0.5f;
-		uint32_t y = h - (in.tex.y * h) + 0.5f;
+		int32_t x = (in.tex.x * w) + 0.5f;
+		int32_t y = h - (in.tex.y * h) + 0.5f;
 
-		Ppm_img::Color c = {0, 0, 0};
-		if (x <= w && y <= h)
-			c = tex_img->buf[x + w * y];
-		else
-			c.r = 255;
+		if (x >= w)
+			x = w - 1;
+		if (y >= h)
+			y = h - 1;
+		if (x < 0)
+			x = 0;
+		if (y < 0)
+			y = 0;
+
+		Ppm_img::Color c = tex_img->buf[x + w * y];
 		return Fbuffer::Color { uint8_t(c.b * intens),
 					uint8_t(c.g * intens),
 					uint8_t(c.r * intens), 255 };

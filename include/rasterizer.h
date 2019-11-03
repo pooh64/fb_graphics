@@ -54,15 +54,15 @@ public:
 			   std::min(tr[0].y, std::min(tr[1].y, tr[2].y))};
 		Vec2 max_r{std::max(tr[0].x, std::max(tr[1].x, tr[2].x)),
 			   std::max(tr[0].y, std::max(tr[1].y, tr[2].y))};
-		uint32_t min_x = std::max(uint32_t(min_r.x), wnd_min_x);
-		uint32_t min_y = std::max(uint32_t(min_r.y), wnd_min_y);
-		uint32_t max_x = std::min(uint32_t(max_r.x), wnd_max_x);
-		uint32_t max_y = std::min(uint32_t(max_r.y), wnd_max_y);
+		uint32_t min_x = std::max(int32_t(min_r.x), int32_t(wnd_min_x));
+		uint32_t min_y = std::max(int32_t(min_r.y), int32_t(wnd_min_y));
+		uint32_t max_x = std::max(std::min(int32_t(max_r.x), int32_t(wnd_max_x)), 0);
+		uint32_t max_y = std::max(std::min(int32_t(max_r.y), int32_t(wnd_max_y)), 0);
 
 		Vec2 r0 = Vec2 { tr[0].x, tr[0].y };
 		rz_out out;
 
-//#define RAST_HACK
+#define RAST_HACK
 #ifdef RAST_HACK
 		Vec4 depth_vec = { tr[0].z, tr[1].z, tr[2].z, 0 };
 		Vec2 rel_0 = Vec2{float(min_x), float(min_y)} - r0;
