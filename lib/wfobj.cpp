@@ -39,7 +39,7 @@ void ImportMtlFile(char const *path,
 		} else if (word == "map_Kd") {
 			if (!(iss >> word))
 				goto handle_err;
-			if (ImportPpm(word.c_str(), cur->tex_img) < 0)
+			if (cur->tex_img.Import(word.c_str()) < 0)
 				goto handle_err;
 		} else if (word == "newmtl") {
 			if (!(iss >> word))
@@ -138,4 +138,9 @@ int ImportWfobj(const char *obj, const char *mtl,
 		return -1;
 	}
 	return 0;
+}
+
+void Wfobj::Destroy()
+{
+	mtl.tex_img.Destroy();
 }

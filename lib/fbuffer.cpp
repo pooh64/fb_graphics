@@ -7,42 +7,44 @@ extern "C" {
 #include <unistd.h>
 };
 
+#include <cstdlib>
+
 #include "include/fbuffer.h"
 
 int Fbuffer::Init(const char *path)
 {
 	void *map_region;
 
-	fd = ::open(path, O_RDWR);
+	fd = open(path, O_RDWR);
 	if (fd < 0)
 		goto handle_err_0;
 
-	if (::ioctl(fd, FBIOGET_VSCREENINFO, (fb_var_screeninfo *)this) < 0)
+	if (ioctl(fd, FBIOGET_VSCREENINFO, (fb_var_screeninfo *)this) < 0)
 		goto handle_err_1;
 
-	if (::ioctl(fd, FBIOGET_FSCREENINFO, (fb_fix_screeninfo *)this) < 0)
+	if (ioctl(fd, FBIOGET_FSCREENINFO, (fb_fix_screeninfo *)this) < 0)
 		goto handle_err_1;
 
-	buf = new Color[xres * yres];
+	buf = (Color*) malloc(sizeof(Color) * xres * yres);
 	if (buf == NULL)
 		goto handle_err_1;
 
 	return 0;
 
 handle_err_1:
-	::close(fd);
+	close(fd);
 handle_err_0:
 	return -1;
 }
 
 int Fbuffer::Destroy()
 {
-	delete[] buf;
-	return ::close(fd);
+	free(buf);
+	return close(fd);
 }
 
 int Fbuffer::Update()
 {
-	int rc = ::pwrite(fd, buf, xres * yres * sizeof(Color), 0);
+	int rc = pwrite(fd, buf, xres * yres * sizeof(Color), 0);
 	return rc < 0 ? rc : 0;
 }

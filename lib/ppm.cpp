@@ -1,12 +1,13 @@
 #include <include/ppm.h>
 
+#include <cstdlib>
 #include <utility>
 #include <fstream>
 #include <sstream>
 #include <vector>
 #include <unordered_map>
 
-int ImportPpm(char const *path, Ppm_img &img)
+int Ppm_img::Import(char const *path)
 {
 	std::ifstream in(path);
 	if (!in.is_open())
@@ -25,10 +26,10 @@ int ImportPpm(char const *path, Ppm_img &img)
 				if (word == "P6");
 				++counter;
 			} else if(counter == 1) {
-				if (iss >> img.w)
+				if (iss >> w)
 					++counter;
 			} else if(counter == 2) {
-				if (iss >> img.h)
+				if (iss >> h)
 					++counter;
 			} else if(counter == 3) {
 				int i_dont_use_this;
@@ -38,13 +39,17 @@ int ImportPpm(char const *path, Ppm_img &img)
 				return -1;
 		}
 	}
-	img.buf = new (std::nothrow) Ppm_img::Color[img.w * img.h];
-	if (img.buf == NULL)
+	buf = (decltype(buf)) malloc(sizeof(Ppm_img::Color) * w * h);
+	if (buf == NULL)
 		return -1;
 
-	in.read(reinterpret_cast<char*>(img.buf),
-			img.w * img.h * sizeof(Ppm_img::Color));
+	in.read(reinterpret_cast<char*>(buf), w * h * sizeof(Ppm_img::Color));
 	if (!in.good())
 		return -1;
 	return 0;
+}
+
+void Ppm_img::Destroy()
+{
+	free(buf);
 }

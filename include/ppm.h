@@ -7,6 +7,7 @@ struct Ppm_img {
 		uint8_t r, g, b;
 	} *buf;
 	uint32_t w, h;
-};
 
-int ImportPpm(char const *path, Ppm_img &img);
+	int Import(char const *path);
+	void Destroy();
+};
