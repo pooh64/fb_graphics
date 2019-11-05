@@ -44,7 +44,8 @@ public:
 
 	void SetView(float xang, float yang, float pos, float scale)
 	{
-		shader->modelview_mat = MakeMat4Scale(Vec3 {scale, scale, scale});
+		shader->modelview_mat = MakeMat4Scale(
+				Vec3 {scale, scale, scale});
 		shader->modelview_mat = MakeMat4Rotate(Vec3 {0, 1, 0}, yang)
 			* shader->modelview_mat;
 		shader->modelview_mat = MakeMat4Rotate(Vec3 {1, 0, 0}, xang)
@@ -56,6 +57,13 @@ public:
 
 		shader->modelview_mat = view * shader->modelview_mat;
 		shader->norm_mat = Transpose(Inverse(shader->modelview_mat));
+
+		if (typeid(*shader) == typeid(TexHighlShader)) {
+			auto sh = dynamic_cast<TexHighlShader*>(shader);
+			sh->light = ReinterpVec3(shader->norm_mat *
+					(Vec4 {1, 1, 1, 1}));
+			sh->light = Normalize(sh->light);
+		}
 	}
 
 	void SetWindow(Window const &_wnd)
