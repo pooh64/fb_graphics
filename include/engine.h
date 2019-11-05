@@ -12,13 +12,13 @@
 #include <include/zbuffer.h>
 #include <include/interpolator.h>
 
-struct TrPipelineObj {
-	Mat4 modelview_mat;
-	Mat4 proj_mat;
-	Mat4 norm_mat;
+
+struct TrModel {
+public:
 	std::vector<std::array<Vertex, 3>> prim_buf;
-	Window wnd;
-	Ppm_img const *tex_img;
+	ModelShader *shader;
+
+	Window wnd; // remove
 
 	void SetWfobj(Wfobj const &e)
 	{
@@ -31,28 +31,38 @@ struct TrPipelineObj {
 			};
 			prim_buf.push_back(vtx);
 		}
-		tex_img = &e.mtl.tex_img;
+
+		auto illum = e.mtl.illum;
+		if      (illum == Wfobj::Mtl::IllumType::COLOR)
+			shader = new TexShader;
+		else if (illum == Wfobj::Mtl::IllumType::HIGHLIGHT)
+			shader = new TexHighlShader;
+		else
+			assert(0);
+		shader->tex_img = &e.mtl.tex_img;
 	}
 
-	void SetView(float xang, float yang, float pos)
+	void SetView(float xang, float yang, float pos, float scale)
 	{
-		modelview_mat = MakeMat4Translate(Vec3 {0, 0, 0});
-		modelview_mat = MakeMat4Rotate(Vec3 {0, 1, 0}, yang)
-			* modelview_mat;
-		modelview_mat = MakeMat4Rotate(Vec3 {1, 0, 0}, xang)
-			* modelview_mat;
-		modelview_mat = MakeMat4Translate(Vec3 {0, 0, -pos})
-			* modelview_mat;
+		shader->modelview_mat = MakeMat4Scale(Vec3 {scale, scale, scale});
+		shader->modelview_mat = MakeMat4Rotate(Vec3 {0, 1, 0}, yang)
+			* shader->modelview_mat;
+		shader->modelview_mat = MakeMat4Rotate(Vec3 {1, 0, 0}, xang)
+			* shader->modelview_mat;
+		shader->modelview_mat = MakeMat4Translate(Vec3 {0, 0, -pos})
+			* shader->modelview_mat;
 
 		Mat4 view = MakeMat4Identy();
 
-		modelview_mat = view * modelview_mat;
-		norm_mat = Transpose(Inverse(modelview_mat));
+		shader->modelview_mat = view * shader->modelview_mat;
+		shader->norm_mat = Transpose(Inverse(shader->modelview_mat));
 	}
 
 	void SetWindow(Window const &_wnd)
 	{
 		wnd = _wnd;
+		shader->SetWindow(wnd);
+
 		float fov = 3.1415 / 3; // fov = 60deg
 		float far  = 1;
 		float near = 0.05;
@@ -60,22 +70,23 @@ struct TrPipelineObj {
 		float size = std::tan(fov / 2) * near;
 
 		float ratio = float (wnd.w) / wnd.h;
-		proj_mat = MakeMat4Projection(size * ratio,
+		shader->proj_mat = MakeMat4Projection(size * ratio,
 			-size * ratio, size, -size, far, near);
 	}
 };
 
 struct TrPipeline {
-	TexHighlShader	shader;
-	TrRasterizer		rast;
-	TrZbuffer		zbuf;
-	TrInterpolator		interp;
+	ModelShader	*shader;
+	TrRasterizer	rast;
+	TrZbuffer	zbuf;
+	TrInterpolator	interp;
 
-	struct TrObj {
-		TrPipelineObj *ptr;
-		std::vector<std::array<decltype(shader)::vs_out, 3>> VShader_buf;
+	struct ModelEntry {
+		TrModel *ptr;
+		ModelShader *shader;
+		std::vector<std::array<ModelShader::vs_out, 3>> VShader_buf;
 	};
-	std::vector<TrObj> obj_buf; // maintain Rendering list
+	std::vector<ModelEntry> model_buf; // maintain Rendering list
 
 	void SetWindow(Window const &wnd)
 	{
@@ -87,35 +98,27 @@ struct TrPipeline {
 
 	void Render(Fbuffer::Color *cbuf)
 	{
-		for (uint32_t oid = 0; oid < obj_buf.size(); ++oid)
-			RenderToZbuf(oid);
+		for (uint32_t m_id = 0; m_id < model_buf.size(); ++m_id)
+			RenderToZbuf(m_id);
 		RenderToCbuf(cbuf);
-		for (auto &e : obj_buf)
+		for (auto &e : model_buf)
 			e.VShader_buf.clear();
 	}
 
 private:
+	std::vector<std::vector<decltype(rast)::rz_out>> rast_buf;
 
-	std::vector<std::vector<TrRasterizer::rz_out>> rast_buf;
-
-	void RenderToZbuf(uint32_t oid)
+	void RenderToZbuf(uint32_t model_id)
 	{
-		TrObj &entry = obj_buf[oid];
-		TrPipelineObj const &obj = *entry.ptr;
-
-		shader.modelview_mat = obj.modelview_mat;
-		shader.proj_mat = obj.proj_mat;
-		shader.norm_mat = obj.norm_mat;
-		shader.SetWindow(obj.wnd);
-
-		// TEMPORARY!!!!!!!!!!!
-		shader.tex_img = obj_buf[0].ptr->tex_img;
+		ModelEntry &entry = model_buf[model_id];
+		shader = entry.shader;
+		TrModel const &obj = *entry.ptr;
 
 		// vshading
 		for (auto const &pr : obj.prim_buf) {
-			std::array<decltype(shader)::vs_out, 3> vs_pr;
+			std::array<ModelShader::vs_out, 3> vs_pr;
 			for (int i = 0; i < 3; ++i)
-				vs_pr[i] = shader.VShader(pr[i]);
+				vs_pr[i] = shader->VShader(pr[i]);
 			entry.VShader_buf.push_back(vs_pr);
 		}
 
@@ -125,20 +128,13 @@ private:
 			Vec3 scr_pos[3];
 			for (int i = 0; i < 3; ++i)
 				scr_pos[i] = ReinterpVec3(vs_pr[i].pos);
-			rast.rasterize(scr_pos, pid, rast_buf);
+			rast.rasterize(scr_pos, pid, model_id, rast_buf);
 		}
 
 		// Zbuffering
 		for (uint32_t y = 0; y < rast_buf.size(); ++y) {
-			for (auto const &re : rast_buf[y]) {
-				auto ze = decltype(zbuf)::elem {
-				        .bc    = {re.bc[0], re.bc[1], re.bc[2]},
-					.depth = re.depth,
-					.x     = re.x,
-					.pid   = re.pid,
-					.oid   = oid };
-				zbuf.add_elem(y, ze);
-			}
+			for (auto const &rast_el : rast_buf[y])
+				zbuf.add_elem(rast_el.x, y, rast_el.fg);
 		}
 
 		for (auto &line : rast_buf)
@@ -147,11 +143,12 @@ private:
 
 	Fbuffer::Color RenderFragment(decltype(zbuf)::elem const &e)
 	{
-		auto const &pr_vs = obj_buf[e.oid].VShader_buf[e.pid];
+		shader = model_buf[e.model_id].shader;
+		auto const &pr_vs = model_buf[e.model_id].VShader_buf[e.prim_id];
 		Vertex pr_vtx[3] = { pr_vs[0].fs_vtx,
 			pr_vs[1].fs_vtx, pr_vs[2].fs_vtx };
 		Vertex vtx = interp.Interpolate(pr_vtx, e.bc);
-		return shader.FShader(vtx);
+		return shader->FShader(vtx);
 	}
 
 	void RenderToCbuf(Fbuffer::Color *cbuf)

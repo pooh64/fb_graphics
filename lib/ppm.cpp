@@ -7,7 +7,7 @@
 #include <vector>
 #include <unordered_map>
 
-int Ppm_img::Import(char const *path)
+int PpmImg::Import(char const *path)
 {
 	std::ifstream in(path);
 	if (!in.is_open())
@@ -39,17 +39,17 @@ int Ppm_img::Import(char const *path)
 				return -1;
 		}
 	}
-	buf = (decltype(buf)) malloc(sizeof(Ppm_img::Color) * w * h);
+	buf = (decltype(buf)) malloc(sizeof(PpmImg::Color) * w * h);
 	if (buf == NULL)
 		return -1;
 
-	in.read(reinterpret_cast<char*>(buf), w * h * sizeof(Ppm_img::Color));
+	in.read(reinterpret_cast<char*>(buf), w * h * sizeof(PpmImg::Color));
 	if (!in.good())
 		return -1;
 	return 0;
 }
 
-void Ppm_img::Destroy()
+void PpmImg::Destroy()
 {
 	free(buf);
 }

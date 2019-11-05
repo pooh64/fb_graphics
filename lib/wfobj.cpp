@@ -20,10 +20,10 @@ void ImportMtlFile(char const *path,
 		std::string word;
 		iss >> word;
 		if (word == "illum") {
-			uint8_t tmp;
+			int tmp;
 			if (!(iss >> tmp))
 				goto handle_err;
-			cur->illum = static_cast<Wfobj::Mtl::Illum_type>(tmp);
+			cur->illum = static_cast<Wfobj::Mtl::IllumType> (tmp);
 		} else if (word == "Ns") {
 			if (!(iss >> cur->ns))
 				goto handle_err;
@@ -55,7 +55,7 @@ handle_err:
 		"could not parse line: " + line);
 }
 
-void ImportObjFile(char const *path,
+void ImportObjFile(char const *path, std::string &mtl_path,
 	std::unordered_map<std::string, Wfobj::Wfobj::Mesh> &map)
 {
 	std::ifstream in(path);
@@ -104,9 +104,13 @@ void ImportObjFile(char const *path,
 				cur->inds.push_back(vsize + i + 1);
 			}
 		} else if (word == "usemtl") {
-			if(!(iss >> word))
+			if (!(iss >> word))
 				goto handle_err;
 			cur = &map[word];
+		} else if (word == "mtllib") {
+			if (!(iss >> word))
+				goto handle_err;
+			mtl_path = word;
 		}
 	}
 	return;
@@ -116,14 +120,14 @@ handle_err:
 		"could not parse line: " + line);
 }
 
-int ImportWfobj(const char *obj, const char *mtl,
-	std::vector<Wfobj> &vec)
+int ImportWfobj(const char *obj, std::vector<Wfobj> &vec)
 {
 	std::unordered_map<std::string, Wfobj::Mesh> map_mesh;
 	std::unordered_map<std::string, Wfobj::Mtl>  map_mtl;
 	try {
-		ImportObjFile(obj, map_mesh);
-		ImportMtlFile(mtl, map_mtl);
+		std::string mtl_path;
+		ImportObjFile(obj, mtl_path, map_mesh);
+		ImportMtlFile(mtl_path.c_str(), map_mtl);
 		if (map_mesh.size() != map_mtl.size())
 			return -1;
 

@@ -13,7 +13,7 @@ struct Wfobj {
 	} mesh;
 
 	struct Mtl {
-		enum class Illum_type : uint8_t {
+		enum class IllumType {
 			COLOR = 0,
 			AMBIENT = 1,
 			HIGHLIGHT = 2,
@@ -22,7 +22,7 @@ struct Wfobj {
 			float r, g, b;
 		} amb, diff, spec;
 		float ns;
-		Ppm_img tex_img;
+		PpmImg tex_img;
 	} mtl;
 
 	std::string name;
@@ -30,5 +30,4 @@ struct Wfobj {
 	void Destroy();
 };
 
-int ImportWfobj(const char *obj_path, const char *mtl_path,
-	std::vector<Wfobj> &vec);
+int ImportWfobj(const char *obj_path, std::vector<Wfobj> &vec);

@@ -17,13 +17,14 @@ struct Shader {
 	virtual fs_out FShader(fs_in const &) const = 0;
 };
 
-struct highl_Shader final: public Shader<Vertex, Vertex, Fbuffer::Color> {
+struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 private:
 	ViewportTransform vp_tr;
 public:
 	Mat4 modelview_mat;
 	Mat4 proj_mat;
 	Mat4 norm_mat;
+	PpmImg const *tex_img;
 
 	void SetWindow(Window const &wnd)
 	{
@@ -42,6 +43,12 @@ public:
 		return out;
 	}
 
+	virtual fs_out FShader(fs_in const &in) const = 0;
+};
+
+
+struct HighlShader final: public ModelShader {
+public:
 	fs_out FShader(fs_in const &in) const override
 	{
 		Vec3 light { 0, 0, 100000 };
@@ -57,44 +64,36 @@ public:
 	}
 };
 
-struct TexHighlShader final: public Shader<Vertex, Vertex, Fbuffer::Color> {
-private:
-	ViewportTransform vp_tr;
+struct TexShader final: public ModelShader {
 public:
-	Mat4 modelview_mat;
-	Mat4 proj_mat;
-	Mat4 norm_mat;
-	Ppm_img const *tex_img;
-
-	void SetWindow(Window const &wnd)
-	{
-		vp_tr.SetWindow(wnd);
-	}
-
-	vs_out VShader(vs_in const &in) const override
-	{
-		vs_out out;
-		Vec4 mv_pos = modelview_mat * ToVec4(in.pos);
-
-		out.fs_vtx.pos 	= ToVec3(mv_pos);
-		out.pos 	= ToVec4(vp_tr(ToVec3(proj_mat * mv_pos)));
-		out.fs_vtx.norm = ToVec3(norm_mat * ToVec4(in.norm));
-		out.fs_vtx.tex 	= in.tex;
-
-		return out;
-	}
-
 	fs_out FShader(fs_in const &in) const override
 	{
-/*
+		int32_t w = tex_img->w;
+		int32_t h = tex_img->h;
+
+		int32_t x = (in.tex.x * w) + 0.5f;
+		int32_t y = h - (in.tex.y * h) + 0.5f;
+
+		if (x >= w)	x = w - 1;
+		if (y >= h)	y = h - 1;
+		if (x < 0)	x = 0;
+		if (y < 0)	y = 0;
+
+		PpmImg::Color c = tex_img->buf[x + w * y];
+		return Fbuffer::Color { c.b, c.g, c.r, 255 };
+	}
+};
+
+struct TexHighlShader final: public ModelShader {
+public:
+	fs_out FShader(fs_in const &in) const override
+	{
 		Vec3 light { 0, 0, 100000 };
 
 		Vec3 light_dir = Normalize(light - in.pos);
 		float dot = DotProd(light_dir, in.norm);
 		dot = std::max((typeof(dot)) 0, dot);
 		float intens = 0.2 + 0.5f * dot + 0.2f * std::pow(dot, 32);
-*/
-		float intens = 1;
 
 		int32_t w = tex_img->w;
 		int32_t h = tex_img->h;
@@ -102,16 +101,12 @@ public:
 		int32_t x = (in.tex.x * w) + 0.5f;
 		int32_t y = h - (in.tex.y * h) + 0.5f;
 
-		if (x >= w)
-			x = w - 1;
-		if (y >= h)
-			y = h - 1;
-		if (x < 0)
-			x = 0;
-		if (y < 0)
-			y = 0;
+		if (x >= w)	x = w - 1;
+		if (y >= h)	y = h - 1;
+		if (x < 0)	x = 0;
+		if (y < 0)	y = 0;
 
-		Ppm_img::Color c = tex_img->buf[x + w * y];
+		PpmImg::Color c = tex_img->buf[x + w * y];
 		return Fbuffer::Color { uint8_t(c.b * intens),
 					uint8_t(c.g * intens),
 					uint8_t(c.r * intens), 255 };

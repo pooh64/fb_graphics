@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-struct Ppm_img {
+struct PpmImg {
 	struct Color {
 		uint8_t r, g, b;
 	} *buf;

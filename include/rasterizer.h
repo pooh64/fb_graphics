@@ -3,13 +3,17 @@
 #include <vector>
 #include <cassert>
 
-template<typename _rz_in, typename _rz_out>
+template<typename _rz_in, typename _fragm>
 struct Rasterizer {
 protected:
 	uint32_t wnd_min_x, wnd_max_x, wnd_min_y, wnd_max_y;
 public:
 	using rz_in  = _rz_in;
-	using rz_out = _rz_out;
+	using fragm  = _fragm;
+	struct rz_out {
+		fragm fg;
+		uint32_t x;
+	};
 
 	void set_Window(Window const &wnd)
 	{
@@ -19,27 +23,17 @@ public:
 		wnd_max_y = wnd.y + wnd.h - 1;
 	}
 
-	virtual void rasterize(rz_in const &, uint32_t,
-			       std::vector<std::vector<rz_out>> &) = 0;
+	virtual void rasterize(rz_in const &, uint32_t, uint32_t,
+			       std::vector<std::vector<rz_out>> &) const = 0;
 };
 
-struct tr_rz_out {
-	union {
-		struct {
-			float bc[3];
-			float depth;
-		};
-		Vec4 sse_data;
-	};
-	uint32_t x;
-	uint32_t pid;
-};
+#include <include/tr_prim.h>
 
-struct TrRasterizer final: public Rasterizer<Vec3[3], tr_rz_out> {
+struct TrRasterizer final: public Rasterizer<Vec3[3], TrFragment> {
 public:
 
-	void rasterize(rz_in const &tr, uint32_t pid,
-		       std::vector<std::vector<rz_out>> &buf) override
+	void rasterize(rz_in const &tr, uint32_t prim_id, uint32_t model_id,
+		       std::vector<std::vector<rz_out>> &buf) const override
 	{
 		Vec3 d1_3 = tr[1] - tr[0];
 		Vec3 d2_3 = tr[2] - tr[0];
@@ -86,9 +80,10 @@ public:
 			for (uint32_t x = min_x; x <= max_x; ++x) {
 				if (pack[0] >= 0 && pack[1] >= 0 &&
 				    pack[2] >= 0 && pack[3] >= 0) {
+					out.fg.sse_data = pack;
+					out.fg.prim_id = prim_id;
+					out.fg.model_id = model_id;
 					out.x = x;
-					out.pid = pid;
-					out.sse_data = pack;
 					buf[y].push_back(out);
 				}
 				pack = pack + pack_dx;
@@ -102,16 +97,17 @@ public:
 				Vec2 rel = Vec2{float(x), float(y)} - r0;
 				float det1 = rel.x * d2.y - rel.y * d2.x;
 				float det2 = d1.x * rel.y - d1.y * rel.x;
-				out.bc[0] = (det - det1 - det2) / det;
-				out.bc[1] = det1 / det;
-				out.bc[2] = det2 / det;
-				if (out.bc[0] < 0 || out.bc[1] < 0 ||
-				     out.bc[2] < 0)
+				out.fg.bc[0] = (det - det1 - det2) / det;
+				out.fg.bc[1] = det1 / det;
+				out.fg.bc[2] = det2 / det;
+				if (out.fg.bc[0] < 0 || out.fg.bc[1] < 0 ||
+				     out.fg.bc[2] < 0)
 					continue;
-				out.depth = DotProd((reinterpret_cast<Vec3&>
+				out.fg.depth = DotProd((reinterpret_cast<Vec3&>
 						(out.bc)), depth_vec);
 				out.x = x;
-				out.pid = pid;
+				out.fg.prim_id = prim_id;
+				out.fg.model_id = model_id;
 				buf[y].push_back(out);
 			}
 		}
