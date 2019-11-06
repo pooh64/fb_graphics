@@ -7,5 +7,6 @@
 !*.hpp
 !makefile
 !*.mk
+!*.sh
 
 !perf.txt

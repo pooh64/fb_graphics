@@ -5,15 +5,67 @@
 #include <ctime>
 #include <utility>
 
+#include <cstring>
+
 extern "C"
 {
 #include <unistd.h>
+}
+
+int perf(Fbuffer &fb, TrPipeline &pipeline,
+		std::vector<TrModel> &model_buf,
+		std::vector<float> &scale_buf, float pos, int n_frames)
+{
+	float xang = 3.1415, yang = 0;
+	clock_t t_delta, t_sum = 0;
+	for (int i = 0; i < n_frames; ++i) {
+		t_delta = clock();
+
+		const float dx = 0.05, dy = 0.05;
+		yang -= dx;
+		xang += dy;
+		for (int i = 0; i < model_buf.size(); ++i) {
+			auto &obj = model_buf[i];
+			float scale = scale_buf[i];
+			obj.SetView(xang, yang, pos, scale);
+		}
+		fb.Clear();
+		pipeline.Render(fb.buf);
+		fb.Update();
+
+		t_delta = clock() - t_delta;
+		t_sum += t_delta;
+	}
+	std::cout << "fps: " <<
+		double(n_frames) / (double(t_sum) / CLOCKS_PER_SEC) <<
+		std::endl;
+	return 0;
 }
 
 int main(int argc, char *argv[])
 {
 	if (argc < 2)
 		return 1;
+
+	int obj_argc = 1;
+	bool perf_flag = false;
+	int perf_frames;
+
+	if (!strcmp(argv[obj_argc], "-help")) {
+		std::cout << "wfobj_view -help" << std::endl;
+		std::cout << "wfobj_view pos 1.obj scale1 2.obj scale2 ..." <<
+			std::endl;
+		std::cout << "wfobj_view -perf nframes pos 1.obj scale1 ..." <<
+			std::endl;
+		return 0;
+	}
+
+	if (!strcmp(argv[obj_argc], "-perf")) {
+		perf_flag = true;
+		perf_frames = atoi(argv[2]);
+		obj_argc += 2;
+	}
+	float pos = atof(argv[obj_argc++]);
 
 	Fbuffer fb;
 	Mouse ms;
@@ -32,7 +84,7 @@ int main(int argc, char *argv[])
 	std::vector<float> scale_buf;
 
 	/* Import models */
-	for (int i = 1; i < argc; i += 2) {
+	for (int i = obj_argc; i < argc; i += 2) {
 		if (ImportWfobj(argv[i], obj_buf) < 0) {
 			std::cerr << "import_wfobj failed\n";
 			return 1;
@@ -63,8 +115,12 @@ int main(int argc, char *argv[])
 				TrPipeline::ModelEntry {.ptr = &model,
 				.shader = model.shader});
 
-	float pos, xang = 3.1415, yang = 0;
-	std::cin >> pos;
+	float xang = 3.1415, yang = 0;
+
+	if (perf_flag) {
+		perf(fb, pipeline, model_buf, scale_buf, pos, perf_frames);
+		return 0;
+	}
 
 	while (1) {
 		Mouse::Event ev;
