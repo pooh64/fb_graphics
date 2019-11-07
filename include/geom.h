@@ -159,6 +159,15 @@ inline Vec3 operator*(float const a, Vec3 const &v)
 	return ret;
 }
 
+inline bool operator>(Vec3 const &v1, Vec3 const &v2)
+{
+	for (int i = 0; i < 3; ++i) {
+		if (v1[i] <= v2[i])
+			return false;
+	}
+	return true;
+}
+
 /* ************************************************************************** */
 
 struct alignas(16) Vec4 {

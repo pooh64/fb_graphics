@@ -23,7 +23,8 @@ int PpmImg::Import(char const *path)
 		while (!iss.eof()) {
 			if (counter == 0) {
 				iss >> word;
-				if (word == "P6");
+				if (word != "P6")
+					return -1;
 				++counter;
 			} else if(counter == 1) {
 				if (iss >> w)

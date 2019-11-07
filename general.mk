@@ -4,8 +4,10 @@ CXX := g++
 
 LDFLAGS := -pthread
 
-# CPPFLAGS := -std=gnu++17 -g -O3 -mavx -I$(SELF_DIR)
-CPPFLAGS := -g -I$(SELF_DIR) -std=gnu++17 -Ofast -march=native -mtune=native -mavx -ftree-vectorize
+CPPFLAGS := -std=c++17 -I$(SELF_DIR)
+# CPPFLAGS += -Wall
+CPPFLAGS += -g
+CPPFLAGS += -mavx -Ofast -march=native -mtune=native -ftree-vectorize
 # CPPFLAGS += -frename-registers -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math
 
 # CPPFLAGS += -fsanitize=address -g

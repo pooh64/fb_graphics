@@ -7,6 +7,7 @@ template<typename _rz_in, typename _fragm>
 struct Rasterizer {
 protected:
 	uint32_t wnd_min_x, wnd_max_x, wnd_min_y, wnd_max_y;
+	ViewportTransform vp_tr;
 public:
 	using rz_in  = _rz_in;
 	using fragm  = _fragm;
@@ -17,6 +18,7 @@ public:
 
 	void set_Window(Window const &wnd)
 	{
+		vp_tr.SetWindow(wnd);
 		wnd_min_x = wnd.x;
 		wnd_min_y = wnd.y;
 		wnd_max_x = wnd.x + wnd.w - 1;
@@ -35,6 +37,18 @@ public:
 	void rasterize(rz_in const &tr, uint32_t prim_id, uint32_t model_id,
 		       std::vector<std::vector<rz_out>> &buf) const override
 	{
+	 	Vec3 min_r{std::min(tr[0].x, std::min(tr[1].x, tr[2].x)),
+			   std::min(tr[0].y, std::min(tr[1].y, tr[2].y)),
+			   std::min(tr[0].z, std::min(tr[1].z, tr[2].z))};
+		Vec3 max_r{std::max(tr[0].x, std::max(tr[1].x, tr[2].x)),
+			   std::max(tr[0].y, std::max(tr[1].y, tr[2].y)),
+			   std::max(tr[0].z, std::max(tr[1].z, tr[2].z))};
+
+		uint32_t min_x = std::max(int32_t(min_r.x), int32_t(wnd_min_x));
+		uint32_t min_y = std::max(int32_t(min_r.y), int32_t(wnd_min_y));
+		uint32_t max_x = std::max(std::min(int32_t(max_r.x), int32_t(wnd_max_x)), 0);
+		uint32_t max_y = std::max(std::min(int32_t(max_r.y), int32_t(wnd_max_y)), 0);
+
 		Vec3 d1_3 = tr[1] - tr[0];
 		Vec3 d2_3 = tr[2] - tr[0];
 		Vec2 d1 = { d1_3.x, d1_3.y };
@@ -43,15 +57,6 @@ public:
 		float det = d1.x * d2.y - d1.y * d2.x;
 		if (det == 0)
 			return;
-
-	 	Vec2 min_r{std::min(tr[0].x, std::min(tr[1].x, tr[2].x)),
-			   std::min(tr[0].y, std::min(tr[1].y, tr[2].y))};
-		Vec2 max_r{std::max(tr[0].x, std::max(tr[1].x, tr[2].x)),
-			   std::max(tr[0].y, std::max(tr[1].y, tr[2].y))};
-		uint32_t min_x = std::max(int32_t(min_r.x), int32_t(wnd_min_x));
-		uint32_t min_y = std::max(int32_t(min_r.y), int32_t(wnd_min_y));
-		uint32_t max_x = std::max(std::min(int32_t(max_r.x), int32_t(wnd_max_x)), 0);
-		uint32_t max_y = std::max(std::min(int32_t(max_r.y), int32_t(wnd_max_y)), 0);
 
 		Vec2 r0 = Vec2 { tr[0].x, tr[0].y };
 		rz_out out;
@@ -104,7 +109,7 @@ public:
 				     out.fg.bc[2] < 0)
 					continue;
 				out.fg.depth = DotProd((reinterpret_cast<Vec3&>
-						(out.bc)), depth_vec);
+						(out.fg.bc)), depth_vec);
 				out.x = x;
 				out.fg.prim_id = prim_id;
 				out.fg.model_id = model_id;
