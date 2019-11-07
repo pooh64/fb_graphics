@@ -13,36 +13,11 @@ void VshaderStage(ModelShader *shader,
 		std::array<ModelShader::vs_out, 3> vs_pr;
 		for (int i = 0; i < 3; ++i)
 			vs_pr[i] = shader->VShader(pr[i]);
-#if 1
-#if 0
-		Vec3 min_r{std::min(vs_pr[0].pos.x, std::min(vs_pr[1].pos.x, vs_pr[2].pos.x)),
-			   std::min(vs_pr[0].pos.y, std::min(vs_pr[1].pos.y, vs_pr[2].pos.y)),
-			   std::min(vs_pr[0].pos.z, std::min(vs_pr[1].pos.z, vs_pr[2].pos.z))};
-		Vec3 max_r{std::max(vs_pr[0].pos.x, std::max(vs_pr[1].pos.x, vs_pr[2].pos.x)),
-			   std::max(vs_pr[0].pos.y, std::max(vs_pr[1].pos.y, vs_pr[2].pos.y)),
-			   std::max(vs_pr[0].pos.z, std::max(vs_pr[1].pos.z, vs_pr[2].pos.z))};
 
-		if (max_r > min_scr && max_scr > min_r)
+		if (vs_pr[0].fs_vtx.pos.z < 0 &&
+		    vs_pr[1].fs_vtx.pos.z < 0 &&
+		    vs_pr[2].fs_vtx.pos.z < 0)
 			vshader_buf.push_back(vs_pr);
-
-#else
-		for (int i = 0; i < 3; ++i) {
-			Vec3 pos = ReinterpVec3(vs_pr[i].pos);
-			if (pos.x <= max_scr.x && pos.y <= max_scr.y && true &&
-			    pos.x >= min_scr.x && pos.y >= min_scr.y && pos.z >= min_scr.z) {
-				vshader_buf.push_back(vs_pr);
-				break;
-			}
-			if (pos.z < min_scr.z)
-				break;
-			if (i == 2)
-				vshader_buf.push_back(vs_pr);
-		}
-
-#endif
-#else
-		vshader_buf.push_back(vs_pr);
-#endif
 	}
 }
 
@@ -50,7 +25,6 @@ void RasterizerStage(TrRasterizer &rast, uint32_t model_id,
 		std::vector<std::vector<TrRasterizer::rz_out>> &rast_buf,
 		std::vector<std::array<ModelShader::vs_out, 3>> &vshader_buf)
 {
-	//std::cout << "RasterizerStage: " << vshader_buf.size() << std::endl;
 	for (int pid = 0; pid < vshader_buf.size(); ++pid) {
 		auto const &vs_pr = vshader_buf[pid];
 		Vec3 scr_pos[3];

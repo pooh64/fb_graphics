@@ -4,8 +4,6 @@
 #include <include/geom.h>
 #include <include/fbuffer.h>
 
-#include <iostream>
-
 template <typename _vs_in, typename _fs_in, typename _fs_out>
 struct Shader {
 	using fs_in  = _fs_in;
@@ -42,8 +40,6 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 		out.pos 	= ToVec4(vp_tr(ToVec3(proj_mat * mv_pos)));
 		out.fs_vtx.norm = ToVec3(norm_mat * ToVec4(in.norm));
 		out.fs_vtx.tex 	= in.tex;
-
-		std::cout << "mv.z:" << mv_pos.z << " scr.z: " << out.pos.z << std::endl;
 
 		return out;
 	}

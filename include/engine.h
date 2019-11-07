@@ -69,8 +69,8 @@ public:
 		shader->SetWindow(wnd);
 
 		float fov = 3.1415 / 3; // fov = 60deg
-		float far  = 1;
-		float near = 0.05;
+		float far  = wnd.f;
+		float near = wnd.n;
 
 		float size = std::tan(fov / 2) * near;
 

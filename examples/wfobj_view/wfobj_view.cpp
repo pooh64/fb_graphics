@@ -21,7 +21,7 @@ int perf(Fbuffer &fb, TrPipeline &pipeline,
 	for (int i = 0; i < n_frames; ++i) {
 		t_delta = clock();
 
-		const float dx = 0.05, dy = 0.05;
+		const float dx = 0.03, dy = 0.03;
 		yang -= dx;
 		xang += dy;
 		for (int i = 0; i < model_buf.size(); ++i) {
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	Window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
-	 	       .f = 1000, .n = 0 };
+	 	       .f = pos * 100, .n = pos / 10 };
 	std::vector<Wfobj> obj_buf;
 	std::vector<TrModel> model_buf;
 	std::vector<float> scale_buf;

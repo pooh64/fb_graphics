@@ -10,7 +10,7 @@ CPPFLAGS += -g
 CPPFLAGS += -mavx -Ofast -march=native -mtune=native -ftree-vectorize
 # CPPFLAGS += -frename-registers -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math
 
-# CPPFLAGS += -fsanitize=address -g
+# CPPFLAGS += -fsanitize=address
 # LDFLAGS +=  -fsanitize=address
 
 OBJDIR := $(SELF_DIR)/obj

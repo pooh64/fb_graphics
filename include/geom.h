@@ -444,7 +444,8 @@ inline Mat4 operator*(Mat4 const &m1, Mat4 const &m2)
 /* ************************************************************************** */
 
 struct Window {
-	uint32_t x, y, w, h, f, n;
+	uint32_t x, y, w, h;
+	float f, n;
 };
 
 struct Vertex {
