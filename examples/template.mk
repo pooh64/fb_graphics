@@ -8,15 +8,16 @@ example_dep := $(example_obj:.o=.d)
 
 -include $(example_dep)
 
-%.d: %.cpp
+$(SELF_DIR)/%.d: $(SELF_DIR)/%.cpp
 	$(CXX) $(CPPFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
-%.o: %.cpp
+$(SELF_DIR)/%.o: $(SELF_DIR)/%.cpp
 	$(CXX) -c $(CPPFLAGS) $< -o $@
 
-$(example): $(example_obj) $(lib_obj)
+$(example): $(lib_obj) $(example_obj)
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
 .PHONY: clean
 clean:
 	rm -f $(example_obj) $(example_dep) $(example)
+

@@ -19,11 +19,25 @@ struct TrInterpolator final: public Interpolator<Vertex[3], float[3], Vertex> {
 		v.pos  = Vec3 {0, 0, 0};
 		v.tex  = Vec2 {0, 0};
 		v.norm = Vec3 {0, 0, 0};
+		Vec3 bc_corr {bc[0], bc[1], bc[2]};
+
+		for (int i = 0; i < 3; ++i)
+			bc_corr[i] = bc_corr[i] / tr[i].pos.z;
+
+		float mp = 0;
+		for (int i = 0; i < 3; ++i)
+			mp = mp + bc_corr[i];
+
+		for (int i = 0; i < 3; ++i)
+			bc_corr[i] = bc_corr[i] / mp;
+
+
 		for (int i = 0; i < 3; ++i) {
-			v.pos  = v.pos  + bc[i] * tr[i].pos;
-			v.norm = v.norm + bc[i] * tr[i].norm;
-			v.tex  = v.tex  + bc[i] * tr[i].tex;
+			v.pos  = v.pos  + bc_corr[i] * tr[i].pos;
+			v.norm = v.norm + bc_corr[i] * tr[i].norm;
+			v.tex  = v.tex  + bc_corr[i] * tr[i].tex;
 		}
+
 		v.norm = Normalize(v.norm);
 		return v;
 	}
