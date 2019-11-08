@@ -143,8 +143,3 @@ int ImportWfobj(const char *obj, std::vector<Wfobj> &vec)
 	}
 	return 0;
 }
-
-void Wfobj::Destroy()
-{
-	mtl.tex_img.Destroy();
-}

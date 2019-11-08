@@ -40,17 +40,12 @@ int PpmImg::Import(char const *path)
 				return -1;
 		}
 	}
-	buf = (decltype(buf)) malloc(sizeof(PpmImg::Color) * w * h);
-	if (buf == NULL)
-		return -1;
+	buf.resize(w * h);
 
-	in.read(reinterpret_cast<char*>(buf), w * h * sizeof(PpmImg::Color));
+	in.read(reinterpret_cast<char*>(&buf[0]),
+			buf.size() * sizeof(Color));
 	if (!in.good())
 		return -1;
-	return 0;
-}
 
-void PpmImg::Destroy()
-{
-	free(buf);
+	return 0;
 }

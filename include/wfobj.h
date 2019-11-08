@@ -26,8 +26,6 @@ struct Wfobj {
 	} mtl;
 
 	std::string name;
-
-	void Destroy();
 };
 
 int ImportWfobj(const char *obj_path, std::vector<Wfobj> &vec);

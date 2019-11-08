@@ -1,18 +1,14 @@
-all: $(example)
-
 include ../../general.mk
+
+.DEFAULT_GOAL := all
+all: $(example)
 
 example_src := $(wildcard *.cpp)
 example_obj := $(example_src:.cpp=.o)
 example_dep := $(example_obj:.o=.d)
 
--include $(example_dep)
-
-$(SELF_DIR)/%.d: $(SELF_DIR)/%.cpp
-	$(CXX) $(CPPFLAGS) $< -MM -MT $(@:.d=.o) >$@
-
-$(SELF_DIR)/%.o: $(SELF_DIR)/%.cpp
-	$(CXX) -c $(CPPFLAGS) $< -o $@
+%.o: %.cpp
+	$(CXX) $(CPPFLAGS) $(DEPFLAGS) $*.d -c $< -o $@
 
 $(example): $(lib_obj) $(example_obj)
 	$(CXX) -o $@ $^ $(LDFLAGS)
@@ -21,3 +17,5 @@ $(example): $(lib_obj) $(example_obj)
 clean:
 	rm -f $(example_obj) $(example_dep) $(example)
 
+-include $(lib_dep)
+-include $(example_dep)

@@ -1,24 +1,28 @@
 #pragma once
+
+#include <include/tile.h>
 #include <include/geom.h>
 #include <vector>
+#include <cassert>
+
 #include <cassert>
 
 template<typename _rz_in, typename _fragm>
 struct Rasterizer {
 protected:
 	uint32_t wnd_min_x, wnd_max_x, wnd_min_y, wnd_max_y;
-	ViewportTransform vp_tr;
+	TileTransform tl_tr;
 public:
 	using rz_in  = _rz_in;
 	using fragm  = _fragm;
 	struct rz_out {
 		fragm fg;
-		uint32_t x;
+		uint32_t offs;
 	};
 
 	void set_Window(Window const &wnd)
 	{
-		vp_tr.SetWindow(wnd);
+		tl_tr.w_tiles = ToTilesUp(wnd.w);
 		wnd_min_x = wnd.x;
 		wnd_min_y = wnd.y;
 		wnd_max_x = wnd.x + wnd.w - 1;
@@ -88,14 +92,16 @@ public:
 					out.fg.sse_data = pack;
 					out.fg.prim_id = prim_id;
 					out.fg.model_id = model_id;
-					out.x = x;
-					buf[y].push_back(out);
+					uint32_t tile;
+					tl_tr.ToTile(x, y, tile, out.offs);
+					buf[tile].push_back(out);
 				}
 				pack = pack + pack_dx;
 			}
 			pack_0 = pack_0 + pack_dy;
 		}
 #else
+		assert(!"Implement tiles");
 		Vec3 depth_vec = { tr[0].z, tr[1].z, tr[2].z };
 		for (uint32_t y = min_y; y <= max_y; ++y) {
 			for (uint32_t x = min_x; x <= max_x; ++x) {

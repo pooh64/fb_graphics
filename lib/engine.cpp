@@ -37,13 +37,13 @@ void RasterizerStage(TrRasterizer &rast, uint32_t model_id,
 void ZbufferStage(TrZbuffer &zbuf,
 		std::vector<std::vector<TrRasterizer::rz_out>> &rast_buf)
 {
-	for (uint32_t y = 0; y < rast_buf.size(); ++y) {
-		for (auto const &rast_el : rast_buf[y])
-			zbuf.add_elem(rast_el.x, y, rast_el.fg);
+	for (uint32_t tile = 0; tile < rast_buf.size(); ++tile) {
+		for (auto const &rast_el : rast_buf[tile])
+			zbuf.add_elem(rast_el.offs, tile, rast_el.fg);
 	}
 
-	for (auto &line : rast_buf)
-		line.clear();
+	for (auto &tile : rast_buf)
+		tile.clear();
 }
 
 void TrPipeline::RenderToZbuf(uint32_t model_id)
@@ -71,6 +71,7 @@ inline Fbuffer::Color RenderFragment(TrInterpolator &interp,
 
 void TrPipeline::RenderToCbuf(Fbuffer::Color *cbuf)
 {
+/*
 	uint32_t zbuf_w = zbuf.wnd.w;
 	uint32_t zbuf_h = zbuf.wnd.h;
 	for (uint32_t y = 0; y < zbuf_h; ++y) {
@@ -81,6 +82,22 @@ void TrPipeline::RenderToCbuf(Fbuffer::Color *cbuf)
 			if (e.depth != decltype(zbuf)::free_depth)
 				cbuf[ind] = RenderFragment(interp,
 						model_buf, e);
+		}
+	}
+*/
+	uint32_t cbuf_w = wnd.w;
+
+	for (uint32_t tile = 0; tile < zbuf.buf.size(); ++tile) {
+		for (uint32_t of = 0; of < zbuf.buf[0].size(); ++of) {
+			decltype(zbuf)::elem &e = zbuf.buf[tile][of];
+			if (e.depth != decltype(zbuf)::free_depth) {
+				uint32_t x, y, ind;
+				tl_tr.ToScr(tile, of, x, y);
+				ind = x + y * cbuf_w;
+				cbuf[ind] = RenderFragment(interp,
+						model_buf, e);
+			}
+			e.depth = decltype(zbuf)::free_depth;
 		}
 	}
 }

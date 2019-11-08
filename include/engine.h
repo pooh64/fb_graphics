@@ -5,6 +5,7 @@
 #include <array>
 #include <typeinfo>
 
+#include <include/tile.h>
 #include <include/wfobj.h>
 #include <include/geom.h>
 #include <include/shader.h>
@@ -59,7 +60,7 @@ public:
 		if (typeid(*shader) == typeid(TexHighlShader)) {
 			auto sh = dynamic_cast<TexHighlShader*>(shader);
 			sh->light = ReinterpVec3(shader->norm_mat *
-					(Vec4 {1, 1, 1, 1}));
+					(Vec4 {1, -1, 1, 1}));
 			sh->light = Normalize(sh->light);
 		}
 	}
@@ -86,6 +87,9 @@ struct TrPipeline {
 	TrZbuffer	zbuf;
 	TrInterpolator	interp;
 
+	TileTransform tl_tr;
+	Window wnd;
+
 	struct ModelEntry {
 		TrModel *ptr;
 		ModelShader *shader;
@@ -93,11 +97,18 @@ struct TrPipeline {
 	};
 	std::vector<ModelEntry> model_buf; // maintain Rendering list
 
-	void SetWindow(Window const &wnd)
+	void SetWindow(Window const &_wnd)
 	{
+		wnd = _wnd;
+		uint32_t w_tiles = ToTilesUp(wnd.w);
+		uint32_t h_tiles = ToTilesUp(wnd.h);
+
 		rast.set_Window(wnd);
-		zbuf.set_Window(wnd);
-		rast_buf.resize(wnd.h);
+
+		tl_tr.w_tiles = w_tiles;
+		rast_buf.resize(w_tiles * h_tiles);
+		zbuf.buf.resize(w_tiles * h_tiles);
+
 		zbuf.clear();
 	}
 
