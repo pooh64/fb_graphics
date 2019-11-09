@@ -1,6 +1,6 @@
 #include <include/engine.h>
 
-#define VSHADER_STAGE_CHUNK_SIZE 128
+#define VSHADER_STAGE_CHUNK_SIZE 512
 
 #define pipeline_execute_tasks(_routine)				\
 do {									\
@@ -12,12 +12,8 @@ do {									\
 	task_buf.clear();						\
 } while (0)
 
-std::atomic<int> test; // test
-
 void TrPipeline::VshaderRoutineProcess(int thread_id, int task_id)
 {
-	--test;
-
 	VshaderBuf &vshader_buf = vshader_buffers[thread_id];
 	Task task = task_buf[task_id];
 
@@ -41,8 +37,6 @@ void TrPipeline::VshaderRoutineProcess(int thread_id, int task_id)
 
 void TrPipeline::VshaderRoutineCollect(int thread_id, int task_id)
 {
-	--test;
-
 	Task task = task_buf[task_id];
 	VshaderBuf &vshader_buf = vshader_buffers[task.beg];
 
@@ -57,8 +51,6 @@ void TrPipeline::VshaderStage(uint32_t model_id)
 	cur_vshader_buf = &entry.vshader_buf;
 	cur_shader      = entry.shader;
 
-	cur_vshader_buf->clear(); //test
-
 	auto &prim_buf = entry.ptr->prim_buf;
 	int task_size = VSHADER_STAGE_CHUNK_SIZE;
 
@@ -71,9 +63,7 @@ void TrPipeline::VshaderStage(uint32_t model_id)
 			task.end = task.beg + task_size;
 		task_buf.push_back(task);
 	}
-	test = task_buf.size();
 	pipeline_execute_tasks(VshaderRoutineProcess);
-	assert(test == 0);
 
 	uint32_t offs = 0;
 	for (int i = 0; i < vshader_buffers.size(); ++i) {
@@ -83,10 +73,8 @@ void TrPipeline::VshaderStage(uint32_t model_id)
 		offs += vshader_buffers[i].size();
 		task_buf.push_back(task);
 	}
-	test = task_buf.size();
 	(*cur_vshader_buf).resize(offs);
 	pipeline_execute_tasks(VshaderRoutineCollect);
-	assert(test == 0);
 
 	for (auto &buf : vshader_buffers)
 		buf.clear();

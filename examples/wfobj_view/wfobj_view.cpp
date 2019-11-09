@@ -108,8 +108,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Create pipeline and pass tr objects */
-	//TrPipeline pipeline(std::thread::hardware_concurrency());
-	TrPipeline pipeline(2);
+	TrPipeline pipeline(std::thread::hardware_concurrency());
 	pipeline.SetWindow(wnd);
 	for (auto &model : model_buf)
 		pipeline.model_buf.push_back(

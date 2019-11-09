@@ -13,13 +13,14 @@ DEPFLAGS = -MT $@ -MMD -MP -MF
 CPPFLAGS = -std=c++17 -I$(SELF_DIR)
 CPPFLAGS += -mavx -Ofast -march=native -mtune=native -ftree-vectorize
 # CPPFLAGS += -frename-registers -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math
-# CPPFLAGS += -Wall
-CPPFLAGS += -g
-# CPPFLAGS += -fsanitize=address
-# LDFLAGS +=  -fsanitize=address
 
-# CPPFLAGS += -fsanitize=thread
-# LDFLAGS +=  -fsanitize=thread
+#CPPFLAGS += -Wall
+CPPFLAGS += -g
+#CPPFLAGS += -fsanitize=address
+#LDFLAGS  += -fsanitize=address
+#CPPFLAGS += -fsanitize=thread
+#LDFLAGS  += -fsanitize=thread
+
 
 $(OBJDIR)/%.o: $(LIBDIR)/%.cpp | $(OBJDIR)
 	$(CXX) $(CPPFLAGS) $(DEPFLAGS) $(OBJDIR)/$*.d -c $< -o $@

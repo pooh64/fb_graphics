@@ -51,20 +51,24 @@ private:
 			while ((caught = --task_id) >= 0)
 				task(worker_id, caught);
 
-			size_t gen = done_gen;
-
-			if (++n_done == n_threads) {
-				start = false;	       /* Lock start */
-
-				n_done = 0;
-				++done_gen;	       /* Open barrier */
-				cv_done.notify_all();
-
-				ready = true;	       /* Notify owner */
-				cv_ready.notify_all();
-			} else {
+			{
 				std::unique_lock<std::mutex> lk(m_done);
-				while (gen == done_gen) cv_done.wait(lk);
+				size_t gen = done_gen;
+				if (++n_done == n_threads) {
+					start = false;
+
+					n_done = 0;
+					++done_gen;
+					cv_done.notify_all();
+
+					{ /* Notify owner */
+						std::unique_lock lr_ready(m_ready);
+						ready = true;
+					}
+					cv_ready.notify_all();
+				} else {
+					while (gen == done_gen) cv_done.wait(lk);
+				}
 			}
 		}
 	}
@@ -107,8 +111,10 @@ public:
 			assert(!"Already running!");
 		running = true;
 
-		/* Allow execution */
-		env.start = true;
+		{ /* Allow execution */
+			std::lock_guard<std::mutex> lk(env.m_start);
+			env.start = true;
+		}
 		env.cv_start.notify_all();
 	}
 
