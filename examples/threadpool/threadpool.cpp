@@ -10,7 +10,7 @@ std::vector<int> thread_stat;
 
 void my_task(int id, int x)
 {
-	//std::cout << x << " ";
+	std::cout << x << " ";
 	++my_counter;
 	thread_stat[id]++;
 }
@@ -22,7 +22,7 @@ void test(int n)
 		SyncThreadpool tp(n);
 		my_counter = 0;
 
-		for (int i = 0; i < 10; ++i) {
+		for (int i = 0; i < 1000; ++i) {
 			tp.set_tasks(my_task, n * 10);
 			tp.run();
 			tp.wait_completion();

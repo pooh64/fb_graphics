@@ -21,7 +21,7 @@ private:
 	std::condition_variable cv_start;
 	std::mutex m_start;
 
-	bool done = false;
+	size_t done_gen = 0;
 	std::atomic<int> n_done;
 	std::condition_variable cv_done;
 	std::mutex m_done;
@@ -51,18 +51,20 @@ private:
 			while ((caught = --task_id) >= 0)
 				task(worker_id, caught);
 
+			size_t gen = done_gen;
+
 			if (++n_done == n_threads) {
 				start = false;	       /* Lock start */
 
 				n_done = 0;
-				done = true;	       /* Open barrier */
+				++done_gen;	       /* Open barrier */
 				cv_done.notify_all();
 
 				ready = true;	       /* Notify owner */
 				cv_ready.notify_all();
 			} else {
 				std::unique_lock<std::mutex> lk(m_done);
-				while(!done) cv_done.wait(lk);
+				while (gen == done_gen) cv_done.wait(lk);
 			}
 		}
 	}

@@ -18,6 +18,9 @@ CPPFLAGS += -g
 # CPPFLAGS += -fsanitize=address
 # LDFLAGS +=  -fsanitize=address
 
+# CPPFLAGS += -fsanitize=thread
+# LDFLAGS +=  -fsanitize=thread
+
 $(OBJDIR)/%.o: $(LIBDIR)/%.cpp | $(OBJDIR)
 	$(CXX) $(CPPFLAGS) $(DEPFLAGS) $(OBJDIR)/$*.d -c $< -o $@
 

@@ -1,5 +1,7 @@
 #include <include/engine.h>
 
+#define VSHADER_STAGE_CHUNK_SIZE 128
+
 #define pipeline_execute_tasks(_routine)				\
 do {									\
 	sync_tp.set_tasks(std::bind(&TrPipeline::_routine, this,	\
@@ -10,8 +12,12 @@ do {									\
 	task_buf.clear();						\
 } while (0)
 
+std::atomic<int> test; // test
+
 void TrPipeline::VshaderRoutineProcess(int thread_id, int task_id)
 {
+	--test;
+
 	VshaderBuf &vshader_buf = vshader_buffers[thread_id];
 	Task task = task_buf[task_id];
 
@@ -35,21 +41,26 @@ void TrPipeline::VshaderRoutineProcess(int thread_id, int task_id)
 
 void TrPipeline::VshaderRoutineCollect(int thread_id, int task_id)
 {
+	--test;
+
 	Task task = task_buf[task_id];
 	VshaderBuf &vshader_buf = vshader_buffers[task.beg];
 
-	for (auto i = 0; i < vshader_buf.size(); ++i)
+	for (uint32_t i = 0; i < vshader_buf.size(); ++i)
 		(*cur_vshader_buf)[i + task.end] = vshader_buf[i];
 }
 
-void TrPipeline::VshaderStage(ModelEntry &entry)
+void TrPipeline::VshaderStage(uint32_t model_id)
 {
+	ModelEntry &entry = model_buf[model_id];
 	cur_prim_buf    = &entry.ptr->prim_buf;
 	cur_vshader_buf = &entry.vshader_buf;
 	cur_shader      = entry.shader;
 
+	cur_vshader_buf->clear(); //test
+
 	auto &prim_buf = entry.ptr->prim_buf;
-	int task_size = 64;
+	int task_size = VSHADER_STAGE_CHUNK_SIZE;
 
 	for (int offs = 0; offs < prim_buf.size(); offs += task_size) {
 		Task task;
@@ -60,7 +71,9 @@ void TrPipeline::VshaderStage(ModelEntry &entry)
 			task.end = task.beg + task_size;
 		task_buf.push_back(task);
 	}
+	test = task_buf.size();
 	pipeline_execute_tasks(VshaderRoutineProcess);
+	assert(test == 0);
 
 	uint32_t offs = 0;
 	for (int i = 0; i < vshader_buffers.size(); ++i) {
@@ -70,23 +83,24 @@ void TrPipeline::VshaderStage(ModelEntry &entry)
 		offs += vshader_buffers[i].size();
 		task_buf.push_back(task);
 	}
+	test = task_buf.size();
 	(*cur_vshader_buf).resize(offs);
 	pipeline_execute_tasks(VshaderRoutineCollect);
+	assert(test == 0);
 
 	for (auto &buf : vshader_buffers)
 		buf.clear();
 }
 
-void RasterizerStage(TrRasterizer &rast, uint32_t model_id,
-		TrPipeline::RasterizerBuf &rast_buf,
-		TrPipeline::VshaderBuf &vshader_buf)
+void TrPipeline::RasterizerStage(uint32_t model_id)
 {
+	VshaderBuf &vshader_buf = model_buf[model_id].vshader_buf;
 	for (int pid = 0; pid < vshader_buf.size(); ++pid) {
 		auto const &vs_pr = vshader_buf[pid];
 		Vec3 scr_pos[3];
 		for (int i = 0; i < 3; ++i)
 			scr_pos[i] = ReinterpVec3(vs_pr[i].pos);
-		rast.rasterize(scr_pos, pid, model_id, rast_buf);
+		rast.rasterize(scr_pos, pid, model_id, rast_buffers[0]);
 	}
 }
 
@@ -104,10 +118,8 @@ void ZbufferStage(TrZbuffer &zbuf,
 
 void TrPipeline::RenderToZbuf(uint32_t model_id)
 {
-	ModelEntry &entry = model_buf[model_id];
-
-	VshaderStage(entry);
-	RasterizerStage(rast, model_id, rast_buffers[0], entry.vshader_buf);
+	VshaderStage(model_id);
+	RasterizerStage(model_id);
 	ZbufferStage(zbuf, rast_buffers[0]);
 }
 

@@ -156,9 +156,11 @@ private:
 	VshaderBuf  *cur_vshader_buf;
 	PrimBuf     *cur_prim_buf;
 
-	void VshaderStage(ModelEntry &entry);
+	void VshaderStage(uint32_t model_id);
 	void VshaderRoutineProcess(int, int);
 	void VshaderRoutineCollect(int, int);
+
+	void RasterizerStage(uint32_t model_id);
 
 	void RenderToZbuf(uint32_t model_id);
 	void RenderToCbuf(Fbuffer::Color *cbuf);
