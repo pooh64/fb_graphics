@@ -1,4 +1,4 @@
-#include <include/syncthreadpool.h>
+#include <include/sync_threadpool.h>
 
 #include <atomic>
 #include <cassert>
@@ -6,15 +6,19 @@
 
 std::atomic<int> my_counter;
 
-void my_task(int x)
+std::vector<int> thread_stat;
+
+void my_task(int id, int x)
 {
 	//std::cout << x << " ";
 	++my_counter;
+	thread_stat[id]++;
 }
 
 void test(int n)
 {
 	{
+		thread_stat.resize(n);
 		SyncThreadpool tp(n);
 		my_counter = 0;
 
@@ -27,6 +31,9 @@ void test(int n)
 
 	std::cout << std::flush << std::endl <<
 		"Done: " << my_counter << std::endl;
+	for (int i = 0; i < n; ++i)
+		std::cout << "thread[" << i << "] " <<
+			thread_stat[i] << std::endl;
 }
 
 int main(int argc, char *argv[])

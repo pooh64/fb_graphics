@@ -15,7 +15,7 @@ private:
 	std::vector<std::thread> pool;
 
 	std::atomic<int> task_id;
-	std::function<void(int)> task;
+	std::function<void(int, int)> task;
 
 	bool start = false;
 	std::condition_variable cv_start;
@@ -37,7 +37,7 @@ private:
 		n_done = 0;
 	}
 
-	void worker()
+	void worker(int worker_id)
 	{
 		while (1) {
 			{
@@ -49,7 +49,7 @@ private:
 
 			int caught;
 			while ((caught = --task_id) >= 0)
-				task(caught);
+				task(worker_id, caught);
 
 			if (++n_done == n_threads) {
 				start = false;	       /* Lock start */
@@ -77,9 +77,9 @@ public:
 	{
 		env.n_threads = _n_threads;
 
-		for (int i = 0; i < env.n_threads; ++i)
+		for (int id = 0; id < env.n_threads; ++id)
 			env.pool.push_back(std::thread(
-				&SyncThreadpoolEnv::worker, &env));
+				&SyncThreadpoolEnv::worker, &env, id));
 	}
 
 	~SyncThreadpool()
@@ -93,7 +93,7 @@ public:
 			t.join();
 	}
 
-	void set_tasks(std::function<void(int)> _task, int _task_id)
+	void set_tasks(std::function<void(int, int)> _task, int _task_id)
 	{
 		env.task = _task;
 		env.task_id = _task_id;

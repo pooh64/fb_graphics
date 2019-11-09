@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Create pipeline and pass tr objects */
-	TrPipeline pipeline;
+	TrPipeline pipeline(1);
 	pipeline.SetWindow(wnd);
 	for (auto &model : model_buf)
 		pipeline.model_buf.push_back(

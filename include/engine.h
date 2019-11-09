@@ -12,23 +12,23 @@
 #include <include/rasterizer.h>
 #include <include/zbuffer.h>
 #include <include/interpolator.h>
-
+#include <include/sync_threadpool.h>
 
 struct TrModel {
 public:
-	std::vector<std::array<Vertex, 3>> prim_buf;
+	std::vector<TrPrim> prim_buf;
 	ModelShader *shader;
 
 	void SetWfobj(Wfobj const &e)
 	{
 		for (std::size_t n = 0; n < e.mesh.inds.size(); n += 3) {
 			Wfobj::Mesh const &m = e.mesh;
-			std::array<Vertex, 3> vtx = {
+			TrPrim prim = {
 				m.verts[m.inds[n]],
 				m.verts[m.inds[n + 1]],
 				m.verts[m.inds[n + 2]]
 			};
-			prim_buf.push_back(vtx);
+			prim_buf.push_back(prim);
 		}
 
 		auto illum = e.mtl.illum;
@@ -60,7 +60,7 @@ public:
 		if (typeid(*shader) == typeid(TexHighlShader)) {
 			auto sh = dynamic_cast<TexHighlShader*>(shader);
 			sh->light = ReinterpVec3(shader->norm_mat *
-					(Vec4 {1, -1, 1, 1}));
+					(Vec4 {1, 1, 1, 1}));
 			sh->light = Normalize(sh->light);
 		}
 	}
@@ -82,20 +82,31 @@ public:
 };
 
 struct TrPipeline {
-	ModelShader	*shader;
 	TrRasterizer	rast;
 	TrZbuffer	zbuf;
 	TrInterpolator	interp;
+	TileTransform	tl_tr;
+	Window		wnd;
+	SyncThreadpool	sync_tp;
 
-	TileTransform tl_tr;
-	Window wnd;
+	using VshaderBuf    = std::vector<std::array<ModelShader::vs_out, 3>>;
+	using RasterizerBuf = std::vector<std::vector<decltype(rast)::rz_out>>;
+	using PrimBuf       = std::vector<TrPrim>;
 
 	struct ModelEntry {
 		TrModel *ptr;
 		ModelShader *shader;
-		std::vector<std::array<ModelShader::vs_out, 3>> vshader_buf;
+		VshaderBuf vshader_buf;
 	};
 	std::vector<ModelEntry> model_buf; // maintain Rendering list
+
+	TrPipeline(unsigned n_threads) :
+		sync_tp(n_threads),
+		rast_buffers(n_threads),
+		vshader_buffers(n_threads)
+	{
+
+	}
 
 	void SetWindow(Window const &_wnd)
 	{
@@ -106,23 +117,48 @@ struct TrPipeline {
 		rast.set_Window(wnd);
 
 		tl_tr.w_tiles = w_tiles;
-		rast_buf.resize(w_tiles * h_tiles);
 		zbuf.buf.resize(w_tiles * h_tiles);
+
+		for (auto &rast_buf : rast_buffers) {
+			rast_buf.resize(w_tiles * h_tiles);
+			for (auto &tile : rast_buf)
+				tile.reserve(TILE_SIZE * TILE_SIZE *
+						sizeof(tile[0]) * 8);
+		}
 
 		zbuf.clear();
 	}
 
 	void Render(Fbuffer::Color *cbuf)
 	{
+		for (auto &model : model_buf)
+			model.vshader_buf.resize(model.ptr->prim_buf.size());
+
 		for (uint32_t m_id = 0; m_id < model_buf.size(); ++m_id)
 			RenderToZbuf(m_id);
 		RenderToCbuf(cbuf);
-		for (auto &e : model_buf)
-			e.vshader_buf.clear();
+
+		for (auto &model : model_buf)
+			model.vshader_buf.clear();
 	}
 
+	struct Task {
+		uint32_t beg;
+		uint32_t end;
+	};
+
 private:
-	std::vector<std::vector<decltype(rast)::rz_out>> rast_buf;
+	std::vector<RasterizerBuf> rast_buffers;
+	std::vector<VshaderBuf>    vshader_buffers;
+	std::vector<Task>	   task_buf;
+
+	ModelShader *cur_shader;
+	VshaderBuf  *cur_vshader_buf;
+	PrimBuf     *cur_prim_buf;
+
+	void VshaderStage(ModelEntry &entry);
+	void VshaderRoutineProcess(int, int);
+	void VshaderRoutineCollect(int, int);
 
 	void RenderToZbuf(uint32_t model_id);
 	void RenderToCbuf(Fbuffer::Color *cbuf);

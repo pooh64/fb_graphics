@@ -226,6 +226,18 @@ inline float DotProd(Vec4 const &v1, Vec4 const &v2)
 #endif
 }
 
+inline float DotProd3(Vec4 const &v1, Vec4 const &v2)
+{
+#ifdef GEOM_XMM
+	return _mm_cvtss_f32(_mm_dp_ps(v1.ymm, v2.ymm, 0b01110111));
+#else
+	float accum = 0;
+	for (int i = 0; i < 3; ++i)
+		accum += v1[i] * v2[i];
+	return accum;
+#endif
+}
+
 /* ************************************************************************** */
 
 struct Mat4 {
@@ -486,3 +498,4 @@ inline Vec3 ReinterpVec3(Vec4 const &v)
 }
 
 /* ************************************************************************** */
+

@@ -1,5 +1,7 @@
 #pragma once
 
+using TrPrim = std::array<Vertex, 3>;
+
 struct TrFragment {
 	union {
 		struct {

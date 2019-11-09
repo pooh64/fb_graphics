@@ -65,8 +65,7 @@ public:
 		Vec2 r0 = Vec2 { tr[0].x, tr[0].y };
 		rz_out out;
 
-#define RAST_HACK
-#ifdef RAST_HACK
+#if 1
 		Vec4 depth_vec = { tr[0].z, tr[1].z, tr[2].z, 0 };
 		Vec2 rel_0 = Vec2{float(min_x), float(min_y)} - r0;
 		float bc_d1_x =  d2.y / det;
@@ -76,10 +75,10 @@ public:
 		float bc_d0_x = -bc_d1_x - bc_d2_x;
 		float bc_d0_y = -bc_d1_y - bc_d2_y;
 
-		Vec4 pack_dx = { bc_d0_x, bc_d1_x, bc_d2_x, 0 };
-		pack_dx[3] = DotProd(pack_dx, depth_vec);
-		Vec4 pack_dy = { bc_d0_y, bc_d1_y, bc_d2_y, 0 };
-		pack_dy[3] = DotProd(pack_dy, depth_vec);
+		Vec4 pack_dx = { bc_d0_x, bc_d1_x, bc_d2_x}; //0
+		pack_dx[3] = DotProd3(pack_dx, depth_vec);
+		Vec4 pack_dy = { bc_d0_y, bc_d1_y, bc_d2_y}; //0
+		pack_dy[3] = DotProd3(pack_dy, depth_vec);
 
 		Vec4 pack_0 { 1, 0, 0, tr[0].z };
 		pack_0 = pack_0 + rel_0.x * pack_dx + rel_0.y * pack_dy;

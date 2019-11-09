@@ -1,29 +1,85 @@
 #include <include/engine.h>
 
-void VshaderStage(ModelShader *shader,
-		std::vector<std::array<ModelShader::vs_out, 3>> &vshader_buf,
-		std::vector<std::array<Vertex, 3>> const &prim_buf)
+#define pipeline_execute_tasks(_routine)				\
+do {									\
+	sync_tp.set_tasks(std::bind(&TrPipeline::_routine, this,	\
+		std::placeholders::_1, std::placeholders::_2),		\
+			task_buf.size());				\
+	sync_tp.run();							\
+	sync_tp.wait_completion();					\
+	task_buf.clear();						\
+} while (0)
+
+void TrPipeline::VshaderRoutineProcess(int thread_id, int task_id)
 {
-	Vec3 min_scr = shader->vp_tr.min_scr;
-	Vec3 max_scr = shader->vp_tr.max_scr;
+	VshaderBuf &vshader_buf = vshader_buffers[thread_id];
+	Task task = task_buf[task_id];
+
+	Vec3 min_scr = cur_shader->vp_tr.min_scr;
+	Vec3 max_scr = cur_shader->vp_tr.max_scr;
 	min_scr.z = 0;
 	max_scr.z = std::numeric_limits<float>::max();
 
-	for (auto const &pr : prim_buf) {
-		std::array<ModelShader::vs_out, 3> vs_pr;
-		for (int i = 0; i < 3; ++i)
-			vs_pr[i] = shader->VShader(pr[i]);
+	for (auto i = task.beg; i < task.end; ++i) {
+		PrimBuf::value_type pr = (*cur_prim_buf)[i];
+		VshaderBuf::value_type vs_pr;
+		for (int n = 0; n < 3; ++n)
+			vs_pr[n] = cur_shader->VShader(pr[n]);
 
 		if (vs_pr[0].fs_vtx.pos.z < 0 &&
 		    vs_pr[1].fs_vtx.pos.z < 0 &&
 		    vs_pr[2].fs_vtx.pos.z < 0)
-			vshader_buf.push_back(vs_pr);
+			 vshader_buf.push_back(vs_pr);
 	}
 }
 
+void TrPipeline::VshaderRoutineCollect(int thread_id, int task_id)
+{
+	Task task = task_buf[task_id];
+	VshaderBuf &vshader_buf = vshader_buffers[task.beg];
+
+	for (auto i = 0; i < vshader_buf.size(); ++i)
+		(*cur_vshader_buf)[i + task.end] = vshader_buf[i];
+}
+
+void TrPipeline::VshaderStage(ModelEntry &entry)
+{
+	cur_prim_buf    = &entry.ptr->prim_buf;
+	cur_vshader_buf = &entry.vshader_buf;
+	cur_shader      = entry.shader;
+
+	auto &prim_buf = entry.ptr->prim_buf;
+	int task_size = 64;
+
+	for (int offs = 0; offs < prim_buf.size(); offs += task_size) {
+		Task task;
+		task.beg = offs;
+		if (offs + task_size > prim_buf.size())
+			task.end = task.beg + prim_buf.size() - offs;
+		else
+			task.end = task.beg + task_size;
+		task_buf.push_back(task);
+	}
+	pipeline_execute_tasks(VshaderRoutineProcess);
+
+	uint32_t offs = 0;
+	for (int i = 0; i < vshader_buffers.size(); ++i) {
+		Task task;
+		task.beg = i;
+		task.end = offs;
+		offs += vshader_buffers[i].size();
+		task_buf.push_back(task);
+	}
+	(*cur_vshader_buf).resize(offs);
+	pipeline_execute_tasks(VshaderRoutineCollect);
+
+	for (auto &buf : vshader_buffers)
+		buf.clear();
+}
+
 void RasterizerStage(TrRasterizer &rast, uint32_t model_id,
-		std::vector<std::vector<TrRasterizer::rz_out>> &rast_buf,
-		std::vector<std::array<ModelShader::vs_out, 3>> &vshader_buf)
+		TrPipeline::RasterizerBuf &rast_buf,
+		TrPipeline::VshaderBuf &vshader_buf)
 {
 	for (int pid = 0; pid < vshader_buf.size(); ++pid) {
 		auto const &vs_pr = vshader_buf[pid];
@@ -39,7 +95,7 @@ void ZbufferStage(TrZbuffer &zbuf,
 {
 	for (uint32_t tile = 0; tile < rast_buf.size(); ++tile) {
 		for (auto const &rast_el : rast_buf[tile])
-			zbuf.add_elem(rast_el.offs, tile, rast_el.fg);
+			zbuf.add_elem(tile, rast_el.offs, rast_el.fg);
 	}
 
 	for (auto &tile : rast_buf)
@@ -49,12 +105,10 @@ void ZbufferStage(TrZbuffer &zbuf,
 void TrPipeline::RenderToZbuf(uint32_t model_id)
 {
 	ModelEntry &entry = model_buf[model_id];
-	shader = entry.shader;
-	TrModel const &obj = *entry.ptr;
 
-	VshaderStage(shader, entry.vshader_buf, obj.prim_buf);
-	RasterizerStage(rast, model_id, rast_buf, entry.vshader_buf);
-	ZbufferStage(zbuf, rast_buf);
+	VshaderStage(entry);
+	RasterizerStage(rast, model_id, rast_buffers[0], entry.vshader_buf);
+	ZbufferStage(zbuf, rast_buffers[0]);
 }
 
 inline Fbuffer::Color RenderFragment(TrInterpolator &interp,
@@ -71,20 +125,6 @@ inline Fbuffer::Color RenderFragment(TrInterpolator &interp,
 
 void TrPipeline::RenderToCbuf(Fbuffer::Color *cbuf)
 {
-/*
-	uint32_t zbuf_w = zbuf.wnd.w;
-	uint32_t zbuf_h = zbuf.wnd.h;
-	for (uint32_t y = 0; y < zbuf_h; ++y) {
-		uint32_t ind = y * zbuf_w;
-		for (uint32_t x = 0; x < zbuf_w; ++x, ++ind) {
-			decltype(zbuf)::elem e = zbuf.buf[ind];
-			zbuf.buf[ind].depth = decltype(zbuf)::free_depth;
-			if (e.depth != decltype(zbuf)::free_depth)
-				cbuf[ind] = RenderFragment(interp,
-						model_buf, e);
-		}
-	}
-*/
 	uint32_t cbuf_w = wnd.w;
 
 	for (uint32_t tile = 0; tile < zbuf.buf.size(); ++tile) {
