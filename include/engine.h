@@ -155,12 +155,17 @@ private:
 	ModelShader *cur_shader;
 	VshaderBuf  *cur_vshader_buf;
 	PrimBuf     *cur_prim_buf;
+	uint32_t     cur_model_id;
 
 	void VshaderStage(uint32_t model_id);
 	void VshaderRoutineProcess(int, int);
 	void VshaderRoutineCollect(int, int);
 
+	void RasterizerRoutine(int, int);
 	void RasterizerStage(uint32_t model_id);
+
+	void ZbufferRoutine(int, int);
+	void ZbufferStage();
 
 	void RenderToZbuf(uint32_t model_id);
 	void RenderToCbuf(Fbuffer::Color *cbuf);

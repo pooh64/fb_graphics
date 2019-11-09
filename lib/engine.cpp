@@ -1,6 +1,8 @@
 #include <include/engine.h>
 
-#define VSHADER_STAGE_CHUNK_SIZE 512
+#define VSHADER_ROUTINE_SIZE 512
+#define RASTERIZER_ROUTINE_SIZE 256
+#define ZBUFFER_ROUTINE_SIZE 128
 
 #define pipeline_execute_tasks(_routine)				\
 do {									\
@@ -52,13 +54,14 @@ void TrPipeline::VshaderStage(uint32_t model_id)
 	cur_shader      = entry.shader;
 
 	auto &prim_buf = entry.ptr->prim_buf;
-	int task_size = VSHADER_STAGE_CHUNK_SIZE;
+	uint32_t task_size = VSHADER_ROUTINE_SIZE;
+	uint32_t total_size = prim_buf.size();
 
-	for (int offs = 0; offs < prim_buf.size(); offs += task_size) {
+	for (uint32_t offs = 0; offs < total_size; offs += task_size) {
 		Task task;
 		task.beg = offs;
-		if (offs + task_size > prim_buf.size())
-			task.end = task.beg + prim_buf.size() - offs;
+		if (offs + task_size > total_size)
+			task.end = task.beg + total_size - offs;
 		else
 			task.end = task.beg + task_size;
 		task_buf.push_back(task);
@@ -66,7 +69,7 @@ void TrPipeline::VshaderStage(uint32_t model_id)
 	pipeline_execute_tasks(VshaderRoutineProcess);
 
 	uint32_t offs = 0;
-	for (int i = 0; i < vshader_buffers.size(); ++i) {
+	for (uint32_t i = 0; i < vshader_buffers.size(); ++i) {
 		Task task;
 		task.beg = i;
 		task.end = offs;
@@ -80,35 +83,74 @@ void TrPipeline::VshaderStage(uint32_t model_id)
 		buf.clear();
 }
 
-void TrPipeline::RasterizerStage(uint32_t model_id)
+void TrPipeline::RasterizerRoutine(int thread_id, int task_id)
 {
+	uint32_t model_id = cur_model_id;
 	VshaderBuf &vshader_buf = model_buf[model_id].vshader_buf;
-	for (int pid = 0; pid < vshader_buf.size(); ++pid) {
+	auto &rast_buf = rast_buffers[thread_id];
+	Task task = task_buf[task_id];
+
+	for (int pid = task.beg; pid < task.end; ++pid) {
 		auto const &vs_pr = vshader_buf[pid];
 		Vec3 scr_pos[3];
 		for (int i = 0; i < 3; ++i)
 			scr_pos[i] = ReinterpVec3(vs_pr[i].pos);
-		rast.rasterize(scr_pos, pid, model_id, rast_buffers[0]);
+		rast.rasterize(scr_pos, pid, model_id, rast_buf);
 	}
 }
 
-void ZbufferStage(TrZbuffer &zbuf,
-		std::vector<std::vector<TrRasterizer::rz_out>> &rast_buf)
+void TrPipeline::RasterizerStage(uint32_t model_id)
 {
-	for (uint32_t tile = 0; tile < rast_buf.size(); ++tile) {
-		for (auto const &rast_el : rast_buf[tile])
-			zbuf.add_elem(tile, rast_el.offs, rast_el.fg);
-	}
+	cur_model_id = model_id;
+	VshaderBuf &vshader_buf = model_buf[model_id].vshader_buf;
 
-	for (auto &tile : rast_buf)
-		tile.clear();
+	uint32_t task_size = RASTERIZER_ROUTINE_SIZE;
+	uint32_t total_size = vshader_buf.size();
+	for (uint32_t offs = 0; offs < total_size; offs += task_size) {
+		Task task;
+		task.beg = offs;
+		if (offs + task_size > total_size)
+			task.end = task.beg + total_size - offs;
+		else
+			task.end = task.beg + task_size;
+		task_buf.push_back(task);
+	}
+	pipeline_execute_tasks(RasterizerRoutine);
+}
+
+void TrPipeline::ZbufferRoutine(int thread_id, int task_id)
+{
+	Task task = task_buf[task_id];
+	for (uint32_t tile = task.beg; tile < task.end; ++tile) {
+		for (auto &rast_buf : rast_buffers) {
+			for (auto const &rast_el : rast_buf[tile])
+				zbuf.add_elem(tile, rast_el.offs, rast_el.fg);
+			rast_buf[tile].clear();
+		}
+	}
+}
+
+void TrPipeline::ZbufferStage()
+{
+	uint32_t task_size = ZBUFFER_ROUTINE_SIZE;
+	uint32_t total_size = rast_buffers[0].size();
+	for (uint32_t offs = 0; offs < total_size; offs += task_size) {
+		Task task;
+		task.beg = offs;
+		if (offs + task_size > total_size)
+			task.end = task.beg + total_size - offs;
+		else
+			task.end = task.beg + task_size;
+		task_buf.push_back(task);
+	}
+	pipeline_execute_tasks(ZbufferRoutine);
 }
 
 void TrPipeline::RenderToZbuf(uint32_t model_id)
 {
 	VshaderStage(model_id);
 	RasterizerStage(model_id);
-	ZbufferStage(zbuf, rast_buffers[0]);
+	ZbufferStage();
 }
 
 inline Fbuffer::Color RenderFragment(TrInterpolator &interp,
