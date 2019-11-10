@@ -1,9 +1,9 @@
 #include <include/engine.h>
 
-#define VSHADER_ROUTINE_SIZE 512
-#define RASTERIZER_ROUTINE_SIZE 256
-#define ZBUFFER_ROUTINE_SIZE 512
-#define COLORS_ROUTINE_SIZE 16
+#define VSHADER_ROUTINE_SIZE 64
+#define RASTERIZER_ROUTINE_SIZE 8
+#define ZBUFFER_ROUTINE_SIZE 4
+#define COLORS_ROUTINE_SIZE 4
 
 #define pipeline_execute_tasks(_routine)				\
 do {									\
