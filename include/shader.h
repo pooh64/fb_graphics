@@ -82,7 +82,7 @@ public:
 
 		dot_d = std::max(0.0f, dot_d);
 		dot_s = std::max(0.0f, dot_s);
-		float intens = 0.2f + 0.3f * dot_d + 0.45f * std::pow(dot_s, 32);
+		float intens = 0.4f + 0.25f * dot_d + 0.35f * std::pow(dot_s, 32);
 
 		int32_t w = tex_img->w;
 		int32_t h = tex_img->h;

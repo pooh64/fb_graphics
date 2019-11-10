@@ -18,11 +18,10 @@ struct Zbuffer {
 		}
 	}
 
-	void add_elem(uint32_t tile, uint32_t offs, elem const &e)
+	inline void add_elem(uint32_t tile, uint32_t offs, elem const &e)
 	{
-		auto &zbuf_e = buf[tile][offs];
-		if (zbuf_e.depth > e.depth)
-			zbuf_e = e;
+		if (buf[tile][offs].depth > e.depth)
+			buf[tile][offs] = e;
 	}
 };
 

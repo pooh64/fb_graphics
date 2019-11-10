@@ -2,7 +2,8 @@
 
 #define VSHADER_ROUTINE_SIZE 512
 #define RASTERIZER_ROUTINE_SIZE 256
-#define ZBUFFER_ROUTINE_SIZE 128
+#define ZBUFFER_ROUTINE_SIZE 512
+#define COLORS_ROUTINE_SIZE 16
 
 #define pipeline_execute_tasks(_routine)				\
 do {									\
@@ -146,14 +147,14 @@ void TrPipeline::ZbufferStage()
 	pipeline_execute_tasks(ZbufferRoutine);
 }
 
-void TrPipeline::RenderToZbuf(uint32_t model_id)
+void TrPipeline::RenderFragments(uint32_t model_id)
 {
 	VshaderStage(model_id);
 	RasterizerStage(model_id);
 	ZbufferStage();
 }
 
-inline Fbuffer::Color RenderFragment(TrInterpolator &interp,
+inline Fbuffer::Color RenderColor(TrInterpolator &interp,
 		std::vector<TrPipeline::ModelEntry> &model_buf,
 		TrZbuffer::elem const &e)
 {
@@ -165,21 +166,40 @@ inline Fbuffer::Color RenderFragment(TrInterpolator &interp,
 	return shader->FShader(vtx);
 }
 
-void TrPipeline::RenderToCbuf(Fbuffer::Color *cbuf)
+void TrPipeline::RenderColorsRoutine(int thread_id, int task_id)
 {
+	Fbuffer::Color *cbuf = cur_color_buf;
 	uint32_t cbuf_w = wnd.w;
+	Task task = task_buf[task_id];
 
-	for (uint32_t tile = 0; tile < zbuf.buf.size(); ++tile) {
+	for (uint32_t tile = task.beg; tile < task.end; ++tile) {
 		for (uint32_t of = 0; of < zbuf.buf[0].size(); ++of) {
 			decltype(zbuf)::elem &e = zbuf.buf[tile][of];
 			if (e.depth != decltype(zbuf)::free_depth) {
 				uint32_t x, y, ind;
 				tl_tr.ToScr(tile, of, x, y);
 				ind = x + y * cbuf_w;
-				cbuf[ind] = RenderFragment(interp,
-						model_buf, e);
+				cbuf[ind] = RenderColor(interp, model_buf, e);
 			}
 			e.depth = decltype(zbuf)::free_depth;
 		}
 	}
+}
+
+void TrPipeline::RenderColors(Fbuffer::Color *cbuf)
+{
+	cur_color_buf = cbuf;
+
+	uint32_t task_size = COLORS_ROUTINE_SIZE;
+	uint32_t total_size = zbuf.buf.size();
+	for (uint32_t offs = 0; offs < total_size; offs += task_size) {
+		Task task;
+		task.beg = offs;
+		if (offs + task_size > total_size)
+			task.end = task.beg + total_size - offs;
+		else
+			task.end = task.beg + task_size;
+		task_buf.push_back(task);
+	}
+	pipeline_execute_tasks(RenderColorsRoutine);
 }

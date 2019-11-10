@@ -2,7 +2,7 @@
 #include <include/mouse.h>
 #include <include/engine.h>
 #include <iostream>
-#include <ctime>
+#include <chrono>
 #include <utility>
 
 #include <cstring>
@@ -16,12 +16,13 @@ int perf(Fbuffer &fb, TrPipeline &pipeline,
 		std::vector<TrModel> &model_buf,
 		std::vector<float> &scale_buf, float pos, int n_frames)
 {
-	float xang = 3.1415, yang = 0;
-	clock_t t_delta, t_sum = 0;
-	for (int i = 0; i < n_frames; ++i) {
-		t_delta = clock();
+	float xang = 3.1415, yang = 3.1415 / 3;
 
-		const float dx = 0.03, dy = 0.03;
+	auto beg_time = std::chrono::system_clock::now();
+
+	for (int i = 0; i < n_frames; ++i) {
+		const float rotspeed = 0.05;
+		const float dx = 1 * rotspeed, dy = 0.07 * rotspeed;
 		yang -= dx;
 		xang += dy;
 		for (int i = 0; i < model_buf.size(); ++i) {
@@ -32,13 +33,14 @@ int perf(Fbuffer &fb, TrPipeline &pipeline,
 		fb.Clear();
 		pipeline.Render(fb.buf);
 		fb.Update();
-
-		t_delta = clock() - t_delta;
-		t_sum += t_delta;
 	}
+
+	auto end_time = std::chrono::system_clock::now();
+	std::chrono::duration
+		<double> perf_time = end_time - beg_time;
+
 	std::cout << "fps: " <<
-		double(n_frames) / (double(t_sum) / CLOCKS_PER_SEC) <<
-		std::endl;
+		double(n_frames) / perf_time.count() << std::endl;
 	return 0;
 }
 

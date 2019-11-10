@@ -135,8 +135,8 @@ struct TrPipeline {
 			model.vshader_buf.resize(model.ptr->prim_buf.size());
 
 		for (uint32_t m_id = 0; m_id < model_buf.size(); ++m_id)
-			RenderToZbuf(m_id);
-		RenderToCbuf(cbuf);
+			RenderFragments(m_id);
+		RenderColors(cbuf);
 
 		for (auto &model : model_buf)
 			model.vshader_buf.clear();
@@ -152,10 +152,12 @@ private:
 	std::vector<VshaderBuf>    vshader_buffers;
 	std::vector<Task>	   task_buf;
 
-	ModelShader *cur_shader;
-	VshaderBuf  *cur_vshader_buf;
-	PrimBuf     *cur_prim_buf;
-	uint32_t     cur_model_id;
+	/* Routines info */
+	ModelShader    *cur_shader;
+	VshaderBuf     *cur_vshader_buf;
+	PrimBuf        *cur_prim_buf;
+	uint32_t        cur_model_id;
+	Fbuffer::Color *cur_color_buf;
 
 	void VshaderStage(uint32_t model_id);
 	void VshaderRoutineProcess(int, int);
@@ -167,6 +169,8 @@ private:
 	void ZbufferRoutine(int, int);
 	void ZbufferStage();
 
-	void RenderToZbuf(uint32_t model_id);
-	void RenderToCbuf(Fbuffer::Color *cbuf);
+	void RenderColorsRoutine(int, int);
+
+	void RenderFragments(uint32_t model_id);
+	void RenderColors(Fbuffer::Color *cbuf);
 };
