@@ -19,7 +19,10 @@ void test(int n)
 {
 	{
 		thread_stat.resize(n);
-		SyncThreadpool tp(n);
+		SyncThreadpool tp;
+		tp.add_concurrency(n / 2);
+		tp.add_concurrency(n - n / 2);
+
 		my_counter = 0;
 
 		for (int i = 0; i < 1000; ++i) {

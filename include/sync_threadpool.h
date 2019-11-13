@@ -7,11 +7,12 @@
 #include <vector>
 #include <functional>
 #include <cassert>
+#include <cstdint>
 
 struct SyncThreadpoolEnv {
 	friend struct SyncThreadpool;
 private:
-	unsigned n_threads = 0;
+	uint32_t n_threads = 0;
 	std::vector<std::thread> pool;
 
 	std::atomic<int> task_id;
@@ -81,13 +82,21 @@ private:
 	struct SyncThreadpoolEnv env;
 	bool running = false; /* Track run/wait completion */
 public:
-	void set_concurrency(unsigned _n_threads)
+	void add_concurrency(uint32_t n_thr)
 	{
-		env.n_threads = _n_threads;
+		if (running)
+			wait_completion();
 
-		for (int id = 0; id < env.n_threads; ++id)
+		for (int id = env.n_threads; id < env.n_threads + n_thr; ++id)
 			env.pool.push_back(std::thread(
 				&SyncThreadpoolEnv::worker, &env, id));
+
+		env.n_threads += n_thr;
+	}
+
+	uint32_t get_concurrency()
+	{
+		return env.n_threads;
 	}
 
 	~SyncThreadpool()

@@ -10,25 +10,25 @@
 #include <array>
 #include <typeinfo>
 
-template <typename _vs_in, typename _fragm, typename _fs_out>
+template <typename _vs_in, typename _fs_in, typename _fs_out>
 struct Shader {
 	using VsIn  = _vs_in;
-	using Fragm  = _fragm;
+	using FsIn  = _fs_in;
 	using FsOut = _fs_out;
 	struct VsOut {
 		Vec4 pos;
 		FsIn fs_vtx;
 	};
 	virtual VsOut VShader(VsIn const &) const = 0;
-	virtual FsOut FShader(Fragm const &) const = 0;
-	virtual void set_view(Mat4 &view, float scale) = 0;
+	virtual FsOut FShader(FsIn const &) const = 0;
+	virtual void set_view(Mat4 const &view, float scale) = 0;
 	virtual void set_window(Window const &) = 0;
 };
 
 template <typename _in, typename _data>
 struct Setup {
 	using In   = _in;
-	using Data = _out;
+	using Data = _data;
 	virtual Data Process(Data const &) const = 0;
 	virtual void set_window(Window const &) = 0;
 };
@@ -74,9 +74,9 @@ struct FragmCheck {
 template <typename _data, typename _fragm, typename _out>
 struct Interp {
 	using Data = _data;
-	using In   = _in;
-	using Out  = _out;w
-	virtual Out Process(Data const &, Fragm const &) const = 0;
+	using In   = _fragm;
+	using Out  = _out;
+	virtual Out Process(Data const &, In const &) const = 0;
 };
 
 
@@ -84,79 +84,101 @@ template <typename _shader,      typename _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _fragm_check, typename _interp>
 struct Pipeline {
-	using Input    = _Setup::In;
+	using _Setup   = _setup;
 	using _Shader  = _shader;
+	using Input    = typename _Setup::In;
 	using InputBuf = std::vector<Input>;
 
 	_Shader shader;
 
 	void Render(InputBuf const &_inp_buf, Fbuffer::Color *cbuf);
-	void set_concurrency(uint32_t n_threads);
+	void add_concurrency(uint32_t n_threads);
 	void set_window(Window const &wnd);
 private:
-	uint32_t w_bins;
-	uint32_t w_tiles;
-	uint32_t w_pix;
+	uint32_t w_bins = 0;
+	uint32_t h_bins = 0;
+	uint32_t w_pix  = 0;
 
-	using _Setup      = _setup;
-	using _BinRast    = _bin_rast;
+	using    _BinRast =    _bin_rast;
 	using _CoarseRast = _coarse_rast;
-	using _FineRast   = _rasterizer;
+	using   _FineRast =   _fine_rast;
 	using _FragmCheck = _fragm_check;
-	using _Interp     = _interp;
+	using     _Interp =      _interp;
 
-	_Setup      setup;
-	_BinRast    bin_rast;
+	_Setup            setup;
+	_BinRast       bin_rast;
 	_CoarseRast coarse_rast;
-	_FineRast   fine_rast;
+	_FineRast     fine_rast;
 	_FragmCheck fragm_check;
-	_Interp     interp;
+	_Interp          interp;
 
-	using Data  = _Setup::Data;
-	using Fragm = _FineRast::Out;
+	using Data  = typename _Setup::Data;
+	using Fragm = typename _FineRast::Out;
 
 	using DataBuf   = std::vector<Data>;
 	using BinBuf    = std::vector<std::vector<uint32_t>>;
 	using CoarseBuf = Bin<std::vector<uint32_t>>;
 	using FineBuf   = Tile<Fragm>;
 
-	std::vector<DataBuf>   data_buffs;
-	std::vector<BinBuf>    bin_buffs;
+	std::vector<DataBuf>     data_buffs;
+	std::vector<BinBuf>       bin_buffs;
 	std::vector<CoarseBuf> coarse_buffs;
-	std::vector<FineBuf>   fine_buffs;
+	std::vector<FineBuf>     fine_buffs;
 
 	/* Threading & routines */
-	InputBuf const *cur_inp_buf;
 	SyncThreadpool sync_tp;
 
-	void Pipeline::SetupProcessRoutine(int thread_id, int task_id);
-	void Pipeline::  SetupMergeRoutine(int thread_id, int task_id);
-	void Pipeline::     BinRastRoutine(int thread_id, int task_id);
-	void Pipeline::     DrawBinRoutine(int thread_id, int task_id);
+	struct Task {
+		uint32_t beg;
+		uint32_t end;
+	};
+	std::vector<Task> task_buf;
+
+	InputBuf       *cur_inp_buf;
+	Fbuffer::Color *cur_cbuf;
+
+	void SetupProcessRoutine(int thread_id, int task_id);
+	void   SetupMergeRoutine(int thread_id, int task_id);
+	void      BinRastRoutine(int thread_id, int task_id);
+	void      DrawBinRoutine(int thread_id, int task_id);
 };
 
 template <typename _shader,      typename _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _fragm_check, typename _interp>
-void Pipeline::set_window(Window const &wnd)
+void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
+     _fragm_check, _interp>::set_window(Window const &wnd)
 {
-	setup.set_window(wnd);
-	bin_rast.set_window(wnd);
+	      setup.set_window(wnd);
+	   bin_rast.set_window(wnd);
 	coarse_rast.set_window(wnd);
-	fine_rast.set_window(wnd);
+	  fine_rast.set_window(wnd);
 	fragm_check.set_window(wnd);
 
-	w_pix   = wnd.w;
-	w_tiles = RoundUp(w_pix, TILE_SIZE);
-	w_bins  = RoundUp(w_tiles, BIN_SIZE);
+	w_pix  = wnd.w;
+	w_bins = DivRoundUp(w_pix, BIN_SIZE * TILE_SIZE);
+	h_bins = DivRoundUp(wnd.h, BIN_SIZE * TILE_SIZE);
+
+	for (auto &buf : bin_buffs)
+		buf.resize(w_bins * h_bins);
 }
 
 template <typename _shader,      typename _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _fragm_check, typename _interp>
-void Pipeline::set_concurrency(uint32_t n_threads)
+void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
+     _fragm_check, _interp>::add_concurrency(uint32_t n_threads)
 {
-	sync_tp.set_concurrency(n_threads);
+	sync_tp.add_concurrency(n_threads);
+	n_threads = sync_tp.get_concurrency();
+
+	  data_buffs.resize(n_threads);
+	   bin_buffs.resize(n_threads);
+	coarse_buffs.resize(n_threads);
+	  fine_buffs.resize(n_threads);
+
+	for (auto &buf : bin_buffs)
+		buf.resize(w_bins * h_bins);
 }
 
 #define pipeline_execute_tasks(_routine)				\
@@ -199,7 +221,8 @@ do {									\
 template <typename _shader,      typename _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _fragm_check, typename _interp>
-void Pipeline::SetupProcessRoutine(int thread_id, int task_id)
+void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
+     _fragm_check, _interp>::SetupProcessRoutine(int thread_id, int task_id)
 {
 	auto task = task_buf[task_id];
 	auto &data_buf = data_buffs[thread_id];
@@ -212,18 +235,22 @@ void Pipeline::SetupProcessRoutine(int thread_id, int task_id)
 template <typename _shader,      typename _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _fragm_check, typename _interp>
-void Pipeline::SetupMergeRoutine(int thread_id, int task_id)
+void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
+     _fragm_check, _interp>::SetupMergeRoutine(int thread_id, int task_id)
 {
 	auto task = task_buf[task_id];
+	auto &my_buf = data_buffs[task.beg];
+	auto &target_buf = data_buffs[0];
 
-	for (uint32_t offs = 0; offs < data_buf.size(); ++offs)
-		data_buffs[0][offs + task.end] = data_buffs[task.beg][offs];
+	for (uint32_t offs = 0; offs < my_buf.size(); ++offs)
+		target_buf[offs + task.end] = my_buf[offs];
 }
 
 template <typename _shader,      typename _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _fragm_check, typename _interp>
-void Pipeline::BinRastRoutine(int thread_id, int task_id)
+void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
+     _fragm_check, _interp>::BinRastRoutine(int thread_id, int task_id)
 {
 	auto task = task_buf[task_id];
 	auto &data_buf = data_buffs[0];
@@ -236,13 +263,14 @@ void Pipeline::BinRastRoutine(int thread_id, int task_id)
 template <typename _shader,      typename _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _fragm_check, typename _interp>
-void Pipeline::DrawBinRoutine(int thread_id, int task_id)
+void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
+     _fragm_check, _interp>::DrawBinRoutine(int thread_id, int task_id)
 {
 	auto task = task_buf[task_id];
 	uint32_t bin_id = task.beg;
 
+	auto *cbuf = cur_cbuf;
 	auto &data_buf = data_buffs[0];
-
 	auto &coarse_buf = coarse_buffs[thread_id];
 	auto   &fine_buf =   fine_buffs[thread_id];
 
@@ -276,14 +304,14 @@ void Pipeline::DrawBinRoutine(int thread_id, int task_id)
 				uint32_t fragm_ind = x + TILE_SIZE * y;
 				Vec2i r = {.x = r0.x + x, .y = r0.y + y};
 
-				auto const &crs_out = coarse_buf[fragm_id];
-				auto const &fragm = crs_out.fragm;
+				auto const &fine_out = fine_buf[fragm_ind];
+				auto const &fragm = fine_out.fragm;
 				if (fragm_check.Check(fragm, r) == false)
 					continue;
 
-				auto const &data = data_buf[crs_out.data_id];
+				auto const &data = data_buf[fine_out.data_id];
 				auto inp_out = interp.Process(data, fragm);
-				uint32_t cbuf_ind = r.x + r.y * wnd_w;
+				uint32_t cbuf_ind = r.x + r.y * w_pix;
 				cbuf[cbuf_ind] = shader.FSshader(inp_out);
 			}
 		}
@@ -293,8 +321,12 @@ void Pipeline::DrawBinRoutine(int thread_id, int task_id)
 template <typename _shader,      typename _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _fragm_check, typename _interp>
-void Pipeline::Render(InputBuf const &inp_buf, Fbuffer::Color *cbuf)
+void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
+     _fragm_check, _interp>::Render(InputBuf const &inp_buf, Fbuffer::Color *cbuf)
 {
+	cur_inp_buf = &inp_buf;
+	cur_cbuf = cbuf;
+
 	pipeline_split_tasks(inp_buf, 32); // bigger chunks for better coherency
 	pipeline_execute_tasks(SetupProcessRoutine);
 

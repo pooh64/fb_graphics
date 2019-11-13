@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <array>
 #include <include/geom.h>
 #include <include/ppm.h>
 
@@ -26,6 +27,8 @@ struct Wfobj {
 	} mtl;
 
 	std::string name;
+
+	void get_prim_buf(std::vector<std::array<Vertex, 3>> &);
 };
 
 int ImportWfobj(const char *obj_path, std::vector<Wfobj> &vec);

@@ -5,6 +5,18 @@
 #include <sstream>
 #include <unordered_map>
 
+void Wfobj::get_prim_buf(std::vector<std::array<Vertex, 3>> &out)
+{
+	for (std::size_t n = 0; n < mesh.inds.size(); n += 3) {
+		std::array<Vertex, 3> prim = {
+			mesh.verts[mesh.inds[n]],
+			mesh.verts[mesh.inds[n + 1]],
+			mesh.verts[mesh.inds[n + 2]]
+		};
+		out.push_back(prim);
+	}
+}
+
 void ImportMtlFile(char const *path,
 	std::unordered_map<std::string, Wfobj::Mtl> &map)
 {

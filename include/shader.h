@@ -2,36 +2,36 @@
 
 #include <include/pipeline.h>
 
-template <typename _vs_in, typename _fragm, typename _fs_out>
-struct Shader {
-	using VsIn  = _vs_in;
-	using Fragm  = _fragm;
-	using FsOut = _fs_out;
-	struct VsOut {
-		Vec4 pos;
-		FsIn fs_vtx;
-	};
-	virtual VsOut VShader(VsIn const &) const = 0;
-	virtual FsOut FShader(Fragm const &) const = 0;
-	virtual void set_window(Window const &) = 0;
-}
-
 struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
-	ViewportTransform vp_tr;
-
-	Mat4 modelview_mat;
-	Mat4 proj_mat;
-	Mat4 norm_mat;
 	PpmImg const *tex_img;
 
-	void SetWindow(Window const &wnd)
+	void set_window(Window const &wnd) override
 	{
-		vp_tr.SetWindow(wnd);
+		vp_tr.set_window(wnd);
+
+		float fov = 3.1415 / 3;
+		float far  = wnd.f;
+		float near = wnd.n;
+
+		float size = std::tan(fov / 2) * near;
+		float ratio = float(wnd.w) / wnd.h;
+
+		proj_mat = MakeMat4Projection(size * ratio,
+			-size * ratio, size, -size, far, near);
 	}
 
-	vs_out VShader(vs_in const &in) const override
+	void set_view(Mat4 const &view, float scale) override
 	{
-		vs_out out;
+		modelview_mat = MakeMat4Scale(scale) * view;
+		norm_mat = Transpose(Inverse(modelview_mat));
+
+		light = Normalize(ReinterpVec3(norm_mat *
+				(Vec4{1, 1, 1, 1})));
+	}
+
+	VsOut VShader(VsIn const &in) const override
+	{
+		VsOut out;
 		Vec4 mv_pos = modelview_mat * ToVec4(in.pos);
 
 		out.fs_vtx.pos 	= ToVec3(mv_pos);
@@ -42,13 +42,21 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 		return out;
 	}
 
-	virtual fs_out FShader(fs_in const &in) const override = 0;
+	virtual FsOut FShader(FsIn const &in) const override = 0;
+
+private:
+	ViewportTransform vp_tr;
+	Mat4 modelview_mat;
+	Mat4 proj_mat;
+	Mat4 norm_mat;
+
+	Vec3 light;
 };
 
 
 struct TexShader final: public ModelShader {
 public:
-	fs_out FShader(fs_in const &in) const override
+	FsOut FShader(FsIn const &in) const override
 	{
 		int32_t w = tex_img->w;
 		int32_t h = tex_img->h;
@@ -69,7 +77,7 @@ public:
 struct TexHighlShader final: public ModelShader {
 public:
 	Vec3 light;
-	fs_out FShader(fs_in const &in) const override
+	FsOut FShader(FsIn const &in) const override
 	{
 		Vec3 light_dir = light;
 		Vec3 norm = in.norm;
@@ -80,7 +88,9 @@ public:
 
 		dot_d = std::max(0.0f, dot_d);
 		dot_s = std::max(0.0f, dot_s);
-		float intens = 0.4f + 0.25f * dot_d + 0.35f * std::pow(dot_s, 32);
+		float intens = 0.4f +
+			       0.25f * dot_d +
+			       0.35f * std::pow(dot_s, 32);
 
 		int32_t w = tex_img->w;
 		int32_t h = tex_img->h;

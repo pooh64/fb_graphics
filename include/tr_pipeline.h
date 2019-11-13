@@ -1,5 +1,7 @@
 #pragma once
 
+#include <include/pipeline.h>
+
 using TrPrim = std::array<Vertex, 3>;
 
 struct TrFragm {
@@ -14,90 +16,9 @@ struct TrFragm {
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#if 0
 
 ///// Old code
-
-struct TrModel {
-public:
-	std::vector<TrPrim> prim_buf;
-	ModelShader *shader;
-
-	void SetWfobj(Wfobj const &e)
-	{
-		for (std::size_t n = 0; n < e.mesh.inds.size(); n += 3) {
-			Wfobj::Mesh const &m = e.mesh;
-			TrPrim prim = {
-				m.verts[m.inds[n]],
-				m.verts[m.inds[n + 1]],
-				m.verts[m.inds[n + 2]]
-			};
-			prim_buf.push_back(prim);
-		}
-
-		auto illum = e.mtl.illum;
-		if      (illum == Wfobj::Mtl::IllumType::COLOR)
-			shader = new TexShader;
-		else if (illum == Wfobj::Mtl::IllumType::HIGHLIGHT)
-			shader = new TexHighlShader;
-		else
-			assert(0);
-		shader->tex_img = &e.mtl.tex_img;
-	}
-
-	void SetView(float xang, float yang, float pos, float scale)
-	{
-		shader->modelview_mat = MakeMat4Scale(
-				Vec3 {scale, scale, scale});
-		shader->modelview_mat = MakeMat4Rotate(Vec3 {0, 1, 0}, yang)
-			* shader->modelview_mat;
-		shader->modelview_mat = MakeMat4Rotate(Vec3 {1, 0, 0}, xang)
-			* shader->modelview_mat;
-		shader->modelview_mat = MakeMat4Translate(Vec3 {0, 0, -pos})
-			* shader->modelview_mat;
-
-		Mat4 view = MakeMat4Identy();
-
-		shader->modelview_mat = view * shader->modelview_mat;
-		shader->norm_mat = Transpose(Inverse(shader->modelview_mat));
-
-		if (typeid(*shader) == typeid(TexHighlShader)) {
-			auto sh = dynamic_cast<TexHighlShader*>(shader);
-			sh->light = ReinterpVec3(shader->norm_mat *
-					(Vec4 {1, 1, 1, 1}));
-			sh->light = Normalize(sh->light);
-		}
-	}
-
-	void SetWindow(Window const &wnd)
-	{
-		shader->SetWindow(wnd);
-
-		float fov = 3.1415 / 3; // fov = 60deg
-		float far  = wnd.f;
-		float near = wnd.n;
-
-		float size = std::tan(fov / 2) * near;
-
-		float ratio = float (wnd.w) / wnd.h;
-		shader->proj_mat = MakeMat4Projection(size * ratio,
-			-size * ratio, size, -size, far, near);
-	}
-};
-
 
 struct TrInterpolator final: public Interpolator<Vertex[3], float[3], Vertex> {
 	intr_out Interpolate(intr_prim const &tr, intr_in const &bc)
@@ -248,3 +169,5 @@ public:
 #endif
 	}
 };
+
+#endif
