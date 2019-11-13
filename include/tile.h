@@ -3,19 +3,24 @@
 #include <array>
 #include <cstdint>
 
-#define TILE_SIZE 64
+#define TILE_SIZE 8
+#define BIN_SIZE 8
 
 template <typename _elem>
 using Tile = std::array<_elem, TILE_SIZE * TILE_SIZE>;
 
-inline uint32_t ToTilesUp(uint32_t x)
+template <typename _elem>
+using Bin = std::array<_elem, BIN_SIZE * BIN_SIZE>;
+
+inline uint32_t RoundUp(uint32_t x, uint32_t base)
 {
-	uint32_t rem = x % TILE_SIZE;
+	uint32_t rem = x % base
 	if (rem == 0)
-		return x / TILE_SIZE;
-	return x / TILE_SIZE + 1;
+		return x / base;
+	return x / base + 1;
 }
 
+/*
 struct TileTransform {
 	uint32_t w_tiles;
 
@@ -43,3 +48,4 @@ struct TileTransform {
 		y = t_y * TILE_SIZE + delta_y;
 	}
 };
+*/

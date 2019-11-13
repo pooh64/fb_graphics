@@ -1,22 +1,20 @@
 #pragma once
 
-#include <vector>
-#include <include/geom.h>
-#include <include/fbuffer.h>
+#include <include/pipeline.h>
 
-template <typename _vs_in, typename _fs_in, typename _fs_out>
+template <typename _vs_in, typename _fragm, typename _fs_out>
 struct Shader {
-	using fs_in  = _fs_in;
-	using vs_in  = _vs_in;
-	using fs_out = _fs_out;
-	struct vs_out {
+	using VsIn  = _vs_in;
+	using Fragm  = _fragm;
+	using FsOut = _fs_out;
+	struct VsOut {
 		Vec4 pos;
-		fs_in fs_vtx;
+		FsIn fs_vtx;
 	};
-	virtual vs_out VShader(vs_in const &) const = 0;
-	virtual fs_out FShader(fs_in const &) const = 0;
-};
-
+	virtual VsOut VShader(VsIn const &) const = 0;
+	virtual FsOut FShader(Fragm const &) const = 0;
+	virtual void set_window(Window const &) = 0;
+}
 
 struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 	ViewportTransform vp_tr;

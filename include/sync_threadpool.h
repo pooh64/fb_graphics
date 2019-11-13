@@ -11,7 +11,7 @@
 struct SyncThreadpoolEnv {
 	friend struct SyncThreadpool;
 private:
-	unsigned n_threads;
+	unsigned n_threads = 0;
 	std::vector<std::thread> pool;
 
 	std::atomic<int> task_id;
@@ -37,49 +37,51 @@ private:
 		n_done = 0;
 	}
 
-	void worker(int worker_id)
-	{
-		while (1) {
-			{
-				std::unique_lock<std::mutex> lk(m_start);
-				while (!start) cv_start.wait(lk);
-			}
-			if (finish)
-				return;
+	void worker(int worker_id);
+};
 
-			int caught;
-			while ((caught = --task_id) >= 0)
-				task(worker_id, caught);
+void SyncThreadpoolEnv::worker(int worker_id)
+{
+	while (1) {
+		{
+			std::unique_lock<std::mutex> lk(m_start);
+			while (!start) cv_start.wait(lk);
+		}
+		if (finish)
+			return;
 
-			{
-				std::unique_lock<std::mutex> lk(m_done);
-				size_t gen = done_gen;
-				if (++n_done == n_threads) {
-					start = false;
+		int caught;
+		while ((caught = --task_id) >= 0)
+			task(worker_id, caught);
 
-					n_done = 0;
-					++done_gen;
-					cv_done.notify_all();
+		{
+			std::unique_lock<std::mutex> lk(m_done);
+			size_t gen = done_gen;
+			if (++n_done == n_threads) {
+				start = false;
 
-					{ /* Notify owner */
-						std::unique_lock lr_ready(m_ready);
-						ready = true;
-					}
-					cv_ready.notify_all();
-				} else {
-					while (gen == done_gen) cv_done.wait(lk);
+				n_done = 0;
+				++done_gen;
+				cv_done.notify_all();
+
+				{ /* Notify owner */
+					std::unique_lock lr_ready(m_ready);
+					ready = true;
 				}
+				cv_ready.notify_all();
+			} else {
+				while (gen == done_gen) cv_done.wait(lk);
 			}
 		}
 	}
-};
+}
 
 struct SyncThreadpool {
 private:
 	struct SyncThreadpoolEnv env;
 	bool running = false; /* Track run/wait completion */
 public:
-	SyncThreadpool(unsigned _n_threads)
+	void set_concurrency(unsigned _n_threads)
 	{
 		env.n_threads = _n_threads;
 
