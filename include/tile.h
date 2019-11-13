@@ -6,6 +6,9 @@
 #define TILE_SIZE 8
 #define BIN_SIZE 8
 
+#define TILE_PIX TILE_SIZE
+#define BIN_PIX  (BIN_SIZE * TILE_PIX)
+
 template <typename _elem>
 using Tile = std::array<_elem, TILE_SIZE * TILE_SIZE>;
 

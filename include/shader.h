@@ -2,6 +2,10 @@
 
 #include <include/pipeline.h>
 
+#if 0
+// shaders now in pipeline
+{{{
+
 struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 	PpmImg const *tex_img;
 
@@ -109,3 +113,5 @@ public:
 					uint8_t(c.r * intens), 255 };
 	}
 };
+
+#endif

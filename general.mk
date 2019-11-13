@@ -11,7 +11,8 @@ LDFLAGS = -pthread
 DEPFLAGS = -MT $@ -MMD -MP -MF
 
 CPPFLAGS = -std=c++17 -I$(SELF_DIR)
-CPPFLAGS += -mavx -Ofast -march=native -mtune=native -ftree-vectorize
+# CPPFLAGS += -O0
+ CPPFLAGS += -mavx -Ofast -march=native -mtune=native -ftree-vectorize
 # CPPFLAGS += -frename-registers -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math
 
 #CPPFLAGS += -Wall

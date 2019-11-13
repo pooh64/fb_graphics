@@ -266,6 +266,7 @@ inline Mat4 MakeMat4Identy()
 	return ret;
 }
 
+#if 1
 inline Mat4 MakeMat4View(Vec3 const &ev, Vec3 const &cv, Vec3 const &uv)
 {
 	Vec3 n = Normalize(ev - cv);
@@ -281,6 +282,31 @@ inline Mat4 MakeMat4View(Vec3 const &ev, Vec3 const &cv, Vec3 const &uv)
 		     1.0f };
 	return ret;
 }
+#else
+
+inline Mat4 MakeMat4View(Vec3 const &eye, Vec3 const &center, Vec3 const &up)
+{
+	Vec3 f = Normalize(center - eye);
+	Vec3 u = Normalize(up);
+	Vec3 s = Normalize(CrossProd(f, u));
+	u = CrossProd(s, f);
+
+	Mat4 res;
+	res[0][0] = s.x;
+	res[1][0] = s.y;
+	res[2][0] = s.z;
+	res[0][1] = u.x;
+	res[1][1] = u.y;
+	res[2][1] = u.z;
+	res[0][2] =-f.x;
+	res[1][2] =-f.y;
+	res[2][2] =-f.z;
+	res[3][0] =-DotProd(s, eye);
+	res[3][1] =-DotProd(u, eye);
+	res[3][2] = DotProd(f, eye);
+	return res;
+}
+#endif
 
 inline Mat4 MakeMat4Translate(Vec3 const &v)
 {
@@ -471,7 +497,7 @@ struct ViewportTransform {
 	Vec3 min_scr;
 	Vec3 max_scr;
 
-	inline void SetWindow(Window const &wnd)
+	inline void set_window(Window const &wnd)
 	{
 		float x = wnd.x, y = wnd.y, w = wnd.w, h = wnd.h,
 		      f = wnd.f, n = wnd.n;
@@ -500,5 +526,5 @@ inline Vec3 ReinterpVec3(Vec4 const &v)
 /* ************************************************************************** */
 
 struct Vec2i {
-	uint32_t x, y;
+	int32_t x, y;
 };
