@@ -10,15 +10,7 @@
 #include <array>
 #include <typeinfo>
 
-//#include <include/shader.h>
 #include <include/ppm.h>
-
-
-void Vec3Dump(Vec3 const &v)
-{
-	std::cout << v.x << " " << v.y << " " << v.z << "\n";
-}
-
 
 template <typename _vs_in, typename _fs_in, typename _fs_out>
 struct Shader {
@@ -31,14 +23,12 @@ struct Shader {
 	};
 	virtual VsOut VShader(VsIn const &) const = 0;
 	virtual FsOut FShader(FsIn const &) const = 0;
-	virtual void set_view(Mat4 const &view) = 0;
+	virtual void set_view(Mat4 const &view, float scale) = 0;
 	virtual void set_window(Window const &) = 0;
 };
 
 
 struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
-	PpmImg const *tex_img;
-
 	void set_window(Window const &wnd) override
 	{
 		vp_tr.set_window(wnd);
@@ -54,9 +44,10 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 			-size * ratio, size, -size, far, near);
 	}
 
-	void set_view(Mat4 const &view) override
+	void set_view(Mat4 const &view, float scale) override
 	{
-		modelview_mat = view;
+		Mat4 scale_mat = MakeMat4Scale(Vec3{scale, scale, scale});
+		modelview_mat = view * scale_mat;
 
 		norm_mat = Transpose(Inverse(modelview_mat));
 
@@ -108,6 +99,7 @@ public:
 		//PpmImg::Color c { 200, 200, 200 };
 		return Fbuffer::Color { c.b, c.g, c.r, 255 };
 	}
+	PpmImg const *tex_img;
 };
 
 struct TexHighlShader final: public ModelShader {
@@ -144,8 +136,8 @@ public:
 					uint8_t(c.g * intens),
 					uint8_t(c.r * intens), 255 };
 	}
+	PpmImg const *tex_img;
 };
-
 
 // spec
 using TrPrim = std::array<Vertex, 3>;
@@ -369,9 +361,9 @@ struct TrFineRast final : public FineRast<TrData, TrFragm> {
 		float bc_d0_y = -bc_d1_y - bc_d2_y;
 
 		Vec4 pack_dx = { bc_d0_x, bc_d1_x, bc_d2_x};
-		pack_dx[3] = -DotProd3(pack_dx, depth_vec);  // tricky
+		pack_dx[3] = DotProd3(pack_dx, depth_vec);
 		Vec4 pack_dy = { bc_d0_y, bc_d1_y, bc_d2_y};
-		pack_dy[3] = -DotProd3(pack_dy, depth_vec);  // tricky
+		pack_dy[3] = DotProd3(pack_dy, depth_vec);
 
 		Vec4 pack_0 { 1, 0, 0, tr[0].z };
 		pack_0 = pack_0 + rel_0.x * pack_dx + rel_0.y * pack_dy;
@@ -384,7 +376,7 @@ struct TrFineRast final : public FineRast<TrData, TrFragm> {
 			Vec4 pack = pack_0;
 			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
 				uint32_t pix_ind = x + y * TILE_SIZE;
-				float depth = (buf[pix_ind].fragm.depth); // tricky
+				float depth = (buf[pix_ind].fragm.depth);
 				if (pack[0] >= 0 && pack[1] >= 0 &&
 				    pack[2] >= 0 && pack[3] >= depth) {
 					out.fragm.sse_data = pack;
@@ -461,7 +453,8 @@ struct Pipeline {
 
 	_Shader shader;
 
-	void Render(InputBuf const &_inp_buf, Fbuffer::Color *cbuf);
+	void Accumulate(InputBuf const &_inp_buf);
+	void Render(Fbuffer::Color *cbuf);
 	void add_concurrency(uint32_t n_threads);
 	void set_window(Window const &wnd);
 private:
@@ -701,10 +694,9 @@ template <typename _shader,      template<typename> class _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	  typename _interp>
 void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
- _interp>::Render(InputBuf const &inp_buf, Fbuffer::Color *cbuf)
+ _interp>::Accumulate(InputBuf const &inp_buf)
 {
 	cur_inp_buf = &inp_buf;
-	cur_cbuf = cbuf;
 	setup.shader = shader;
 
 	pipeline_split_tasks(inp_buf, 32); // bigger chunks for better coherency
@@ -712,8 +704,16 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 
 	pipeline_merge_tasks(data_buffs);
 	pipeline_execute_tasks(SetupMergeRoutine);
+}
 
-	// accumulated model
+
+template <typename _shader,      template<typename> class _setup,
+	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
+	  typename _interp>
+void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
+ _interp>::Render(Fbuffer::Color *cbuf)
+{
+	cur_cbuf = cbuf;
 
 	pipeline_split_tasks(data_buffs[0], 32);
 	pipeline_execute_tasks(BinRastRoutine);

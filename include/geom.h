@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <cmath>
 #include <xmmintrin.h>
 #include <smmintrin.h>
@@ -266,47 +267,17 @@ inline Mat4 MakeMat4Identy()
 	return ret;
 }
 
-#if 1
-inline Mat4 MakeMat4View(Vec3 const &ev, Vec3 const &cv, Vec3 const &uv)
+inline Mat4 MakeMat4LookAt(Vec3 const &eye, Vec3 const &at, Vec3 const &up)
 {
-	Vec3 n = Normalize(ev - cv);
-	Vec3 u = Normalize(CrossProd(uv, n));
-	Vec3 v = CrossProd(n, u);
+	Vec3 zaxis = Normalize(eye - at);
+	Vec3 xaxis = Normalize(CrossProd(up, zaxis));
+	Vec3 yaxis = CrossProd(zaxis, xaxis);
 
-	Mat4 ret = { u[0], v[0], n[0], 0.0f,
-		     u[1], v[1], n[1], 0.0f,
-		     u[2], v[2], n[2], 0.0f,
-		     (-1.0f) * DotProd(u, ev),
-		     (-1.0f) * DotProd(v, ev),
-		     (-1.0f) * DotProd(n, ev),
-		     1.0f };
-	return ret;
+	return Mat4 { xaxis[0], xaxis[1], xaxis[2], DotProd(xaxis, eye),
+		      yaxis[0], yaxis[1], yaxis[2], DotProd(yaxis, eye),
+		      zaxis[0], zaxis[1], zaxis[2], DotProd(zaxis, eye),
+		      0,        0,        0,        1                   };
 }
-#else
-
-inline Mat4 MakeMat4View(Vec3 const &eye, Vec3 const &center, Vec3 const &up)
-{
-	Vec3 f = Normalize(center - eye);
-	Vec3 u = Normalize(up);
-	Vec3 s = Normalize(CrossProd(f, u));
-	u = CrossProd(s, f);
-
-	Mat4 res;
-	res[0][0] = s.x;
-	res[1][0] = s.y;
-	res[2][0] = s.z;
-	res[0][1] = u.x;
-	res[1][1] = u.y;
-	res[2][1] = u.z;
-	res[0][2] =-f.x;
-	res[1][2] =-f.y;
-	res[2][2] =-f.z;
-	res[3][0] =-DotProd(s, eye);
-	res[3][1] =-DotProd(u, eye);
-	res[3][2] = DotProd(f, eye);
-	return res;
-}
-#endif
 
 inline Mat4 MakeMat4Translate(Vec3 const &v)
 {
