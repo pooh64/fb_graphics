@@ -153,9 +153,15 @@ struct TrFragm {
 };
 float constexpr TrFreeDepth = std::numeric_limits<float>::min();
 
+enum class SetupCullingType {
+	NO_CULLING,
+	BACK,
+	FRONT,
+};
 
 template <typename _in, typename _data, typename _shader>
-struct Setup {
+struct Setup
+{
 	using In      = _in;
 	using Data    = _data;
 	using _Shader = _shader;
@@ -167,8 +173,8 @@ struct Setup {
 };
 
 //spec
-template <typename _shader>
-struct TrSetup final: public Setup<TrPrim, TrData, _shader> {
+template <SetupCullingType _cul, typename _shader>
+struct TrSetup : public Setup<TrPrim, TrData, _shader> {
 	using Base = Setup<TrPrim, TrData, _shader>;
 	using In      = typename Base::In;
 	using Data    = typename Base::Data;
@@ -179,16 +185,50 @@ struct TrSetup final: public Setup<TrPrim, TrData, _shader> {
 		for (int i = 0; i < in.size(); ++i) {
 			data[i] = Base::shader.VShader(in[i]);
 			if (data[i].fs_vtx.pos.z <= 0)
-				break;
-			if (i == in.size() - 1)
-				out.push_back(data);
+				return;
 		}
+
+		if (_cul != decltype(_cul)::NO_CULLING) {
+			Vec3 tr[3] = { ReinterpVec3(data[0].pos),
+				       ReinterpVec3(data[1].pos),
+				       ReinterpVec3(data[2].pos)};
+
+			Vec3 d1_3 = tr[1] - tr[0];
+			Vec3 d2_3 = tr[2] - tr[0];
+			Vec2 d1 = { d1_3.x, d1_3.y };
+			Vec2 d2 = { d2_3.x, d2_3.y };
+
+			float det = d1.x * d2.y - d1.y * d2.x;
+			if (_cul == decltype(_cul)::BACK) {
+				if (det >= 0) // wtf, why?
+					return;
+			} else {
+				if (det <= 0)
+					return;
+			}
+		}
+		out.push_back(data);
 	}
 
 	void set_window(Window const &wnd) override
 	{
 		/* Nothing */
 	}
+};
+
+template <typename _shader>
+struct TrSetupNoCulling final:
+	public TrSetup<SetupCullingType::NO_CULLING, _shader> {
+};
+
+template <typename _shader>
+struct TrSetupBackCulling final:
+	public TrSetup<SetupCullingType::BACK, _shader> {
+};
+
+template <typename _shader>
+struct TrSetupFrontCulling final:
+	public TrSetup<SetupCullingType::FRONT, _shader> {
 };
 
 template <typename _data>
@@ -318,8 +358,14 @@ struct FineRast {
 	virtual bool Check(Fragm const &fragm) const = 0;
 };
 
+enum class FineRastZbufType {
+	DISABLED,
+	ACTIVE,
+};
+
 // spec
-struct TrFineRast final : public FineRast<TrData, TrFragm> {
+template <FineRastZbufType _zbuf>
+struct TrFineRast : public FineRast<TrData, TrFragm> {
 	void set_window(Window const &wnd) override
 	{
 
@@ -345,8 +391,8 @@ struct TrFineRast final : public FineRast<TrData, TrFragm> {
 		Vec2 d2 = { d2_3.x, d2_3.y };
 
 		float det = d1.x * d2.y - d1.y * d2.x;
-		if (det == 0)
-			return;
+//		if (det == 0)
+//			return;
 
 		Vec2 r0 = Vec2 { tr[0].x, tr[0].y };
 		Out out;
@@ -376,12 +422,22 @@ struct TrFineRast final : public FineRast<TrData, TrFragm> {
 			Vec4 pack = pack_0;
 			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
 				uint32_t pix_ind = x + y * TILE_SIZE;
-				float depth = (buf[pix_ind].fragm.depth);
-				if (pack[0] >= 0 && pack[1] >= 0 &&
-				    pack[2] >= 0 && pack[3] >= depth) {
-					out.fragm.sse_data = pack;
-					out.data_id = id;
-					buf[x + y * TILE_SIZE] = out;
+				if (_zbuf == decltype(_zbuf)::ACTIVE) {
+					float depth = (buf[pix_ind].fragm.depth);
+					if (pack[0] >= 0 && pack[1] >= 0 &&
+					    pack[2] >= 0 && pack[3] >= depth) {
+						out.fragm.sse_data = pack;
+						out.data_id = id;
+						buf[x + y * TILE_SIZE] = out;
+					}
+				} else {  // Disabled
+					if (pack[0] >= 0 && pack[1] >= 0 &&
+					    pack[2] >= 0 && pack[3] >=
+					    std::numeric_limits<float>::min()) {
+						out.fragm.sse_data = pack;
+						out.data_id = id;
+						buf[x + y * TILE_SIZE] = out;
+					}
 				}
 				pack = pack + pack_dx;
 			}
