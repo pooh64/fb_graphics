@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 #endif
 
 #define DRAW_SKY
-//#define DRAW_A6M
+#define DRAW_A6M
 
 #ifdef DRAW_SKY
 	Pipeline<TexShader, TrSetupFrontCulling, TrBinRast,

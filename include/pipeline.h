@@ -79,7 +79,6 @@ private:
 	Vec3 light;
 };
 
-
 struct TexShader final: public ModelShader {
 public:
 	FsOut FShader(FsIn const &in) const override
@@ -231,14 +230,14 @@ struct TrSetupFrontCulling final:
 	public TrSetup<SetupCullingType::FRONT, _shader> {
 };
 
-template <typename _data>
+template <typename _data, typename _out>
 struct BinRast {
 	using Data = _data;
+	using Out = _out;
 	virtual void Process(Data const &, uint32_t,
-		std::vector<std::vector<uint32_t>> &) const = 0;
+		std::vector<std::vector<Out>> &) const = 0;
 	virtual void set_window(Window const &) = 0;
 };
-
 
 //spec
 inline void GetTrBounds(TrData const &tr, Vec2i &min_r, Vec2i &max_r)
@@ -259,8 +258,77 @@ inline void ClipBounds(Vec2i &min_r, Vec2i &max_r,
 	max_r.y = std::max(std::min(int32_t(max_r.y), int32_t(wnd_max.y)), 0);
 }
 
+struct TrEdgeEqn {
+	struct Edge {
+		float cx, cy, c0;
+		float rej_mult;
+	} edge[3];
+
+	/* Evaluate edge-func in left-bottom corner */
+
+	void set(Vec3 const (&v)[3])
+	{
+		set_edge(edge[0], v[0], v[1]);
+		set_edge(edge[1], v[1], v[2]);
+		set_edge(edge[2], v[2], v[0]);
+		for (int i = 0; i < 3; ++i)
+			upd_rej_mult(edge[i]);
+	}
+
+  	void get_reject(float chunk_sz, float (&arr)[3]) const
+	{
+		for (int i = 0; i < 3; ++i) {
+			Edge const &e = edge[i];
+			float mult = (e.cx + e.cy + e.rej_mult);
+			arr[i] = e.c0 + mult * (chunk_sz / 2);
+		}
+	}
+
+	bool try_reject(Vec2i const &v, float const (&arr)[3]) const
+	{
+		for (int i = 0; i < 3; ++i) {
+			Edge const &e = edge[i];
+			float val = e.cx * (float(v.x) + 0.5f)
+				  + e.cy * (float(v.y) + 0.5f) + arr[i];
+			if (val >= 0)
+				return true;
+		}
+		return false;
+	}
+
+/*
+	float get_accept(float chunk_sz) const
+	{
+		Edge const &e = edge[ind];
+		float mult = (e.cx + e.cy - e.rej_mult) / 2;
+		return e.c0 + mult * chunk_sz;
+	}
+*/
+
+private:
+	void set_edge(Edge &e, Vec3 const &v0, Vec3 const &v1)
+	{
+		e.cx = v0.y - v1.y;
+		e.cy = v1.x - v0.x;
+		e.c0 = v0.x * v1.y - v0.y * v1.x;
+	}
+
+	void upd_rej_mult(Edge &e) // from chunk center
+	{
+		if (e.cx < 0) // right
+			e.rej_mult  =  e.cx;
+		else
+			e.rej_mult  = -e.cx;
+		if (e.cy < 0) // up
+			e.rej_mult +=  e.cy;
+		else
+			e.rej_mult += -e.cy;
+	}
+};
+
+
 // spec
-struct TrBinRast final : public BinRast<TrData> {
+struct TrBinRast final : public BinRast<TrData, uint32_t> {
 	int32_t w_bins, h_bins;
 	void set_window(Window const &wnd) override
 	{
@@ -269,7 +337,7 @@ struct TrBinRast final : public BinRast<TrData> {
 	}
 
 	void Process(Data const &data, uint32_t id,
-		std::vector<std::vector<uint32_t>> &buf) const override
+		std::vector<std::vector<Out>> &buf) const override
 	{
 		Vec2i min_r, max_r;
 		GetTrBounds(data, min_r, max_r); // move in data???
@@ -291,16 +359,18 @@ struct TrBinRast final : public BinRast<TrData> {
 };
 
 // bin_n_x, bin_n_y
-template <typename _data>
+template <typename _data, typename _in, typename _out>
 struct CoarseRast {
 	using Data = _data;
-	virtual void Process(Data const &, uint32_t,
-			Bin<std::vector<uint32_t>> &, Vec2i const &) const = 0;
+	using In  = _in;
+	using Out = _out;
+	virtual void Process(Data const &, In,
+			Bin<std::vector<Out>> &, Vec2i const &) const = 0;
 	virtual void set_window(Window const &) = 0;
 };
 
 // spec
-struct TrCoarseRast final : public CoarseRast<TrData> {
+struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, uint32_t> {
 	int32_t w_tiles, h_tiles;
 	void set_window(Window const &wnd) override
 	{
@@ -309,8 +379,8 @@ struct TrCoarseRast final : public CoarseRast<TrData> {
 	}
 
 	// bin -> crd
-	void Process(Data const &data, uint32_t id,
-		Bin<std::vector<uint32_t>> &buf, Vec2i const &bin) const override
+	void Process(Data const &data, In id,
+		Bin<std::vector<Out>> &buf, Vec2i const &bin) const override
 	{
 		Vec2i min_r, max_r;
 		GetTrBounds(data, min_r, max_r); // move in data???
@@ -335,23 +405,35 @@ struct TrCoarseRast final : public CoarseRast<TrData> {
 		max_r.x = max_r.x % BIN_SIZE;
 		max_r.y = max_r.y % BIN_SIZE;
 
+		Vec3 pos[3] = { ReinterpVec3(data[0].pos),
+				ReinterpVec3(data[1].pos),
+				ReinterpVec3(data[2].pos) };
+		TrEdgeEqn eqn;
+		float rej[3];
+		eqn.set(pos);
+		eqn.get_reject(float(TILE_SIZE), rej);
+
 		for (uint32_t y = min_r.y; y <= max_r.y; ++y) {
-			for (uint32_t x = min_r.x; x <= max_r.x; ++x)
-				buf[x + y * BIN_SIZE].push_back(id);
+			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
+				if (eqn.try_reject(Vec2i{x * TILE_SIZE,
+							 y * TILE_SIZE}, rej) == false)
+					buf[x + y * BIN_SIZE].push_back(id);
+			}
 		}
 	}
 };
 
 // tile_n_x, tile_n_y
-template <typename _data, typename _fragm>
+template <typename _data, typename _in, typename _fragm>
 struct FineRast {
 	using Data  = _data;
+	using In    = _in;
 	using Fragm = _fragm;
 	struct Out {
 		Fragm fragm;
 		uint32_t data_id;
 	};
-	virtual void Process(Data const &, uint32_t,
+	virtual void Process(Data const &, In,
 			Tile<Out> &, Vec2i const &) const = 0;
 	virtual void set_window(Window const &) = 0;
 	virtual void ClearBuf(Tile<Out> &) const = 0;
@@ -365,12 +447,12 @@ enum class FineRastZbufType {
 
 // spec
 template <FineRastZbufType _zbuf>
-struct TrFineRast : public FineRast<TrData, TrFragm> {
+struct TrFineRast : public FineRast<TrData, uint32_t, TrFragm> {
 	void set_window(Window const &wnd) override
 	{
 
 	}
-	void Process(Data const &data, uint32_t id,
+	void Process(Data const &data, In id,
 			Tile<Out> &buf, Vec2i const &crd) const override
 	{
 		Vec2i min_r, max_r;
@@ -390,15 +472,11 @@ struct TrFineRast : public FineRast<TrData, TrFragm> {
 		Vec2 d1 = { d1_3.x, d1_3.y };
 		Vec2 d2 = { d2_3.x, d2_3.y };
 
-		float det = d1.x * d2.y - d1.y * d2.x;
-//		if (det == 0)
-//			return;
-
 		Vec2 r0 = Vec2 { tr[0].x, tr[0].y };
-		Out out;
-
 		Vec4 depth_vec = { tr[0].z, tr[1].z, tr[2].z, 0 };
 		Vec2 rel_0 = Vec2{float(min_r.x), float(min_r.y)} - r0;
+		float det = d1.x * d2.y - d1.y * d2.x;
+
 		float bc_d1_x =  d2.y / det;
 		float bc_d1_y = -d2.x / det;
 		float bc_d2_x = -d1.y / det;
@@ -418,6 +496,7 @@ struct TrFineRast : public FineRast<TrData, TrFragm> {
 		min_r.y = min_r.y % TILE_SIZE;
 		max_r.x = max_r.x % TILE_SIZE;
 		max_r.y = max_r.y % TILE_SIZE;
+		Out out;
 		for (uint32_t y = min_r.y; y <= max_r.y; ++y) {
 			Vec4 pack = pack_0;
 			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
