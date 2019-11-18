@@ -65,7 +65,9 @@ int main(int argc, char *argv[])
 
 	tex_pipe.shader.tex_img = sky.tex;
 	tex_pipe.set_window(wnd);
-	tex_pipe.add_concurrency(std::thread::hardware_concurrency());
+//	tex_pipe.add_concurrency(std::thread::hardware_concurrency());
+	tex_pipe.add_concurrency(1);
+
 #endif
 #ifdef DRAW_A6M
 	Pipeline<TexShader, TrSetupBackCulling, TrBinRast,
@@ -74,10 +76,11 @@ int main(int argc, char *argv[])
 
 	hgl_pipe.shader.tex_img = a6m.tex;
 	hgl_pipe.set_window(wnd);
-	hgl_pipe.add_concurrency(std::thread::hardware_concurrency());
+//	hgl_pipe.add_concurrency(std::thread::hardware_concurrency());
+	hgl_pipe.add_concurrency(1);
 #endif
 
-	for (int i = 0; i < 100; ++i) {
+	for (int i = 0; i < 500; ++i) {
 		float const rotspd = 3.1415 / 1000;
 		Mat4 view = view0 * MakeMat4Rotate(Vec3{0,1,0}, i * rotspd);
 #ifdef DRAW_SKY

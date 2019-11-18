@@ -198,12 +198,22 @@ struct TrSetup : public Setup<TrPrim, TrData, _shader> {
 			Vec2 d2 = { d2_3.x, d2_3.y };
 
 			float det = d1.x * d2.y - d1.y * d2.x;
-			if (_cul == decltype(_cul)::BACK) {
-				if (det >= 0) // wtf, why?
+			if (_cul == decltype(_cul)::BACK) { // wtf
+				if (det >= 0)
 					return;
-			} else {
+			} else if (_cul == decltype(_cul)::FRONT) {
 				if (det <= 0)
 					return;
+				auto tmp = data[0];
+				data[0] = data[2];
+				data[2] = tmp;
+			} else {
+				assert("Not tested\n");
+				if (det >= 0) {
+					auto tmp = data[0];
+					data[0] = data[2];
+					data[2] = tmp;
+				}
 			}
 		}
 		out.push_back(data);
@@ -254,7 +264,7 @@ inline void ClipBounds(Vec2i &min_r, Vec2i &max_r,
 {
 	min_r.x = std::max(int32_t(min_r.x), int32_t(wnd_min.x));
 	min_r.y = std::max(int32_t(min_r.y), int32_t(wnd_min.y));
-	max_r.x = std::max(std::min(int32_t(max_r.x), int32_t(wnd_max.x)), 0);
+	max_r.x = std::max(std:: min(int32_t(max_r.x), int32_t(wnd_max.x)), 0);
 	max_r.y = std::max(std::min(int32_t(max_r.y), int32_t(wnd_max.y)), 0);
 }
 
@@ -271,8 +281,6 @@ struct TrEdgeEqn {
 		set_edge(edge[0], v[0], v[1]);
 		set_edge(edge[1], v[1], v[2]);
 		set_edge(edge[2], v[2], v[0]);
-		for (int i = 0; i < 3; ++i)
-			upd_rej_mult(edge[i]);
 	}
 
   	void get_reject(float chunk_sz, float (&arr)[3]) const
@@ -288,29 +296,46 @@ struct TrEdgeEqn {
 	{
 		for (int i = 0; i < 3; ++i) {
 			Edge const &e = edge[i];
-			float val = e.cx * (float(v.x) + 0.5f)
-				  + e.cy * (float(v.y) + 0.5f) + arr[i];
+			float val = e.cx * float(v.x)
+				+ e.cy * float(v.y) + arr[i]; // 0.5?
+
 			if (val >= 0)
 				return true;
 		}
 		return false;
 	}
 
-/*
-	float get_accept(float chunk_sz) const
+  	void get_accept(float chunk_sz, float (&arr)[3]) const
 	{
-		Edge const &e = edge[ind];
-		float mult = (e.cx + e.cy - e.rej_mult) / 2;
-		return e.c0 + mult * chunk_sz;
+		for (int i = 0; i < 3; ++i) {
+			Edge const &e = edge[i];
+			float mult = (e.cx + e.cy - e.rej_mult);
+			arr[i] = e.c0 + mult * (chunk_sz / 2);
+		}
 	}
-*/
 
+	bool try_accept(Vec2i const &v, float const (&arr)[3]) const
+	{
+		for (int i = 0; i < 3; ++i) {
+			Edge const &e = edge[i];
+			float val = e.cx * float(v.x)
+				+ e.cy * float(v.y) + arr[i]; // 0.5?
+
+			if (val >= 0)
+				return false;
+		}
+		return true;
+	}
 private:
 	void set_edge(Edge &e, Vec3 const &v0, Vec3 const &v1)
 	{
 		e.cx = v0.y - v1.y;
 		e.cy = v1.x - v0.x;
 		e.c0 = v0.x * v1.y - v0.y * v1.x;
+		upd_rej_mult(e);
+
+		//printf("(%lg, %lg) (%lg, %lg)\n", v0.x, v0.y, v1.x, v1.y);
+		//printf("(%lg, %lg), %lg\n", e.cx, e.cy, e.c0);
 	}
 
 	void upd_rej_mult(Edge &e) // from chunk center
@@ -405,19 +430,27 @@ struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, uint32_t> {
 		max_r.x = max_r.x % BIN_SIZE;
 		max_r.y = max_r.y % BIN_SIZE;
 
-		Vec3 pos[3] = { ReinterpVec3(data[0].pos),
-				ReinterpVec3(data[1].pos),
-				ReinterpVec3(data[2].pos) };
+		Vec3 tr_vec[3] = { ReinterpVec3(data[0].pos),
+				   ReinterpVec3(data[1].pos),
+				   ReinterpVec3(data[2].pos) };
 		TrEdgeEqn eqn;
 		float rej[3];
-		eqn.set(pos);
+		float acc[3];
+
+		eqn.set(tr_vec);
 		eqn.get_reject(float(TILE_SIZE), rej);
+		eqn.get_accept(float(TILE_SIZE), acc);
 
 		for (uint32_t y = min_r.y; y <= max_r.y; ++y) {
 			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
-				if (eqn.try_reject(Vec2i{x * TILE_SIZE,
-							 y * TILE_SIZE}, rej) == false)
-					buf[x + y * BIN_SIZE].push_back(id);
+				Vec2i vec {(bin.x * BIN_SIZE + int32_t(x))
+					   * TILE_SIZE,
+					   (bin.y * BIN_SIZE + int32_t(y))
+				           * TILE_SIZE};
+				if (eqn.try_reject(vec, rej) == false) {
+					if (eqn.try_accept(vec, acc) == true)
+						buf[x + y * BIN_SIZE].push_back(id);
+				}
 			}
 		}
 	}
