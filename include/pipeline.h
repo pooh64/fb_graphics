@@ -70,7 +70,7 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 
 	virtual FsOut FShader(FsIn const &in) const override = 0;
 
-private:
+protected:
 	ViewportTransform vp_tr;
 	Mat4 modelview_mat;
 	Mat4 proj_mat;
@@ -103,7 +103,6 @@ public:
 
 struct TexHighlShader final: public ModelShader {
 public:
-	Vec3 light;
 	FsOut FShader(FsIn const &in) const override
 	{
 		Vec3 light_dir = light;
@@ -115,9 +114,9 @@ public:
 
 		dot_d = std::max(0.0f, dot_d);
 		dot_s = std::max(0.0f, dot_s);
-		float intens = 0.4f +
-			       0.25f * dot_d +
-			       0.35f * std::pow(dot_s, 32);
+		float intens = 0.35f +
+			       0.24f * dot_d +
+			       0.40f * std::pow(dot_s, 32);
 
 		int32_t w = tex_img->w;
 		int32_t h = tex_img->h;
@@ -141,6 +140,7 @@ public:
 // spec
 using TrPrim = std::array<Vertex, 3>;
 using TrData = std::array<ModelShader::VsOut, 3>;
+
 struct TrFragm {
 	union {
 		struct {
@@ -150,6 +150,12 @@ struct TrFragm {
 		Vec4 sse_data;
 	};
 };
+
+struct TrOverlapInfo {
+	uint32_t id;
+	bool accepted;
+};
+
 float constexpr TrFreeDepth = std::numeric_limits<float>::min();
 
 enum class SetupCullingType {
@@ -395,7 +401,7 @@ struct CoarseRast {
 };
 
 // spec
-struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, uint32_t> {
+struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, TrOverlapInfo> {
 	int32_t w_tiles, h_tiles;
 	void set_window(Window const &wnd) override
 	{
@@ -404,7 +410,7 @@ struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, uint32_t> {
 	}
 
 	// bin -> crd
-	void Process(Data const &data, In id,
+	void Process(Data const &data, In in,
 		Bin<std::vector<Out>> &buf, Vec2i const &bin) const override
 	{
 		Vec2i min_r, max_r;
@@ -419,7 +425,6 @@ struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, uint32_t> {
 				Vec2i{bin.x * BIN_SIZE, bin.y * BIN_SIZE},
 				Vec2i{(bin.x + 1) * BIN_SIZE - 1,
 				      (bin.y + 1) * BIN_SIZE - 1});
-		// Discard tiles
 		ClipBounds(min_r, max_r,
 				Vec2i{0, 0},
 				Vec2i{w_tiles - 1, h_tiles - 1});
@@ -447,10 +452,12 @@ struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, uint32_t> {
 					   * TILE_SIZE,
 					   (bin.y * BIN_SIZE + int32_t(y))
 				           * TILE_SIZE};
-				if (eqn.try_reject(vec, rej) == false) {
-					if (eqn.try_accept(vec, acc) == true)
-						buf[x + y * BIN_SIZE].push_back(id);
-				}
+				Out out = {.id = in, .accepted = false};
+				if (eqn.try_reject(vec, rej))
+					continue;
+				if (eqn.try_accept(vec, acc))
+					out.accepted = true;
+				buf[x + y * BIN_SIZE].push_back(out);
 			}
 		}
 	}
@@ -466,7 +473,7 @@ struct FineRast {
 		Fragm fragm;
 		uint32_t data_id;
 	};
-	virtual void Process(Data const &, In,
+	virtual void Process(std::vector<Data> const &, In,
 			Tile<Out> &, Vec2i const &) const = 0;
 	virtual void set_window(Window const &) = 0;
 	virtual void ClearBuf(Tile<Out> &) const = 0;
@@ -480,81 +487,10 @@ enum class FineRastZbufType {
 
 // spec
 template <FineRastZbufType _zbuf>
-struct TrFineRast : public FineRast<TrData, uint32_t, TrFragm> {
+struct TrFineRast : public FineRast<TrData, TrOverlapInfo, TrFragm> {
 	void set_window(Window const &wnd) override
 	{
 
-	}
-	void Process(Data const &data, In id,
-			Tile<Out> &buf, Vec2i const &crd) const override
-	{
-		Vec2i min_r, max_r;
-		GetTrBounds(data, min_r, max_r);
-
-		ClipBounds(min_r, max_r,
-				Vec2i{crd.x * TILE_SIZE, crd.y * TILE_SIZE},
-				Vec2i{(crd.x + 1) * TILE_SIZE - 1,
-				      (crd.y + 1) * TILE_SIZE - 1});
-
-		Vec3 tr[3] = { ReinterpVec3(data[0].pos),
-			       ReinterpVec3(data[1].pos),
-			       ReinterpVec3(data[2].pos)};
-
-		Vec3 d1_3 = tr[1] - tr[0];
-		Vec3 d2_3 = tr[2] - tr[0];
-		Vec2 d1 = { d1_3.x, d1_3.y };
-		Vec2 d2 = { d2_3.x, d2_3.y };
-
-		Vec2 r0 = Vec2 { tr[0].x, tr[0].y };
-		Vec4 depth_vec = { tr[0].z, tr[1].z, tr[2].z, 0 };
-		Vec2 rel_0 = Vec2{float(min_r.x), float(min_r.y)} - r0;
-		float det = d1.x * d2.y - d1.y * d2.x;
-
-		float bc_d1_x =  d2.y / det;
-		float bc_d1_y = -d2.x / det;
-		float bc_d2_x = -d1.y / det;
-		float bc_d2_y =  d1.x / det;
-		float bc_d0_x = -bc_d1_x - bc_d2_x;
-		float bc_d0_y = -bc_d1_y - bc_d2_y;
-
-		Vec4 pack_dx = { bc_d0_x, bc_d1_x, bc_d2_x};
-		pack_dx[3] = DotProd3(pack_dx, depth_vec);
-		Vec4 pack_dy = { bc_d0_y, bc_d1_y, bc_d2_y};
-		pack_dy[3] = DotProd3(pack_dy, depth_vec);
-
-		Vec4 pack_0 { 1, 0, 0, tr[0].z };
-		pack_0 = pack_0 + rel_0.x * pack_dx + rel_0.y * pack_dy;
-
-		min_r.x = min_r.x % TILE_SIZE;
-		min_r.y = min_r.y % TILE_SIZE;
-		max_r.x = max_r.x % TILE_SIZE;
-		max_r.y = max_r.y % TILE_SIZE;
-		Out out;
-		for (uint32_t y = min_r.y; y <= max_r.y; ++y) {
-			Vec4 pack = pack_0;
-			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
-				uint32_t pix_ind = x + y * TILE_SIZE;
-				if (_zbuf == decltype(_zbuf)::ACTIVE) {
-					float depth = (buf[pix_ind].fragm.depth);
-					if (pack[0] >= 0 && pack[1] >= 0 &&
-					    pack[2] >= 0 && pack[3] >= depth) {
-						out.fragm.sse_data = pack;
-						out.data_id = id;
-						buf[x + y * TILE_SIZE] = out;
-					}
-				} else {  // Disabled
-					if (pack[0] >= 0 && pack[1] >= 0 &&
-					    pack[2] >= 0 && pack[3] >=
-					    std::numeric_limits<float>::min()) {
-						out.fragm.sse_data = pack;
-						out.data_id = id;
-						buf[x + y * TILE_SIZE] = out;
-					}
-				}
-				pack = pack + pack_dx;
-			}
-			pack_0 = pack_0 + pack_dy;
-		}
 	}
 
 	void ClearBuf(Tile<Out> &buf) const override
@@ -566,6 +502,147 @@ struct TrFineRast : public FineRast<TrData, uint32_t, TrFragm> {
 	bool Check(Fragm const &fragm) const override
 	{
 		return fragm.depth != TrFreeDepth;
+	}
+
+	void Process(std::vector<TrData> const &data_buf, In in,
+			Tile<Out> &buf, Vec2i const &crd) const override
+	{
+		auto const &data = data_buf[in.id];
+		Vec3 tr[3] = { ReinterpVec3(data[0].pos),
+			       ReinterpVec3(data[1].pos),
+			       ReinterpVec3(data[2].pos)};
+
+		Vec3 d1_3 = tr[1] - tr[0];
+		Vec3 d2_3 = tr[2] - tr[0];
+		Vec2 d1 = { d1_3.x, d1_3.y };
+		Vec2 d2 = { d2_3.x, d2_3.y };
+
+		Vec2 r0 = Vec2 { tr[0].x, tr[0].y };
+		float det = d1.x * d2.y - d1.y * d2.x;
+
+		float bc_d1_x =  d2.y / det;
+		float bc_d1_y = -d2.x / det;
+		float bc_d2_x = -d1.y / det;
+		float bc_d2_y =  d1.x / det;
+		float bc_d0_x = -bc_d1_x - bc_d2_x;
+		float bc_d0_y = -bc_d1_y - bc_d2_y;
+
+		Vec4 pack_dx = { bc_d0_x, bc_d1_x, bc_d2_x};
+		Vec4 pack_dy = { bc_d0_y, bc_d1_y, bc_d2_y};
+		if (_zbuf == decltype(_zbuf)::ACTIVE) {
+			Vec4 depth_vec = { tr[0].z, tr[1].z, tr[2].z, 0 };
+			pack_dx[3] = DotProd3(pack_dx, depth_vec);
+			pack_dy[3] = DotProd3(pack_dy, depth_vec);
+		}
+
+		if (in.accepted == true) {
+			Vec2 rel_0 = Vec2{float(crd.x * TILE_SIZE),
+					  float(crd.y * TILE_SIZE)} - r0;
+			Vec4 pack_0 { 1, 0, 0, tr[0].z };
+			pack_0 = pack_0 + rel_0.x * pack_dx + rel_0.y * pack_dy;
+			ProcessAccepted(pack_0, pack_dx, pack_dy, buf, in.id);
+		}
+
+		Vec2i min_r, max_r;
+		GetTrBounds(data, min_r, max_r);
+
+		ClipBounds(min_r, max_r,
+				Vec2i{crd.x * TILE_SIZE, crd.y * TILE_SIZE},
+				Vec2i{(crd.x + 1) * TILE_SIZE - 1,
+				      (crd.y + 1) * TILE_SIZE - 1});
+
+		Vec2 rel_0 = Vec2{float(min_r.x), float(min_r.y)} - r0;
+		Vec4 pack_0 { 1, 0, 0, tr[0].z };
+		pack_0 = pack_0 + rel_0.x * pack_dx + rel_0.y * pack_dy;
+
+		min_r.x = min_r.x % TILE_SIZE;
+		min_r.y = min_r.y % TILE_SIZE;
+		max_r.x = max_r.x % TILE_SIZE;
+		max_r.y = max_r.y % TILE_SIZE;
+
+		ProcessOverlapped(min_r, max_r, pack_0,
+				pack_dx, pack_dy, buf, in.id);
+	}
+
+private:
+	inline void ProcessOverlapped(Vec2i const &min_r, Vec2i const &max_r,
+		Vec4 pack_0, Vec4 const &pack_dx, Vec4 const &pack_dy,
+		Tile<Out> &buf, uint32_t id) const
+	{
+#define _process_zbuf					\
+do {							\
+	float depth = (buf[pix_ind].fragm.depth);	\
+	if (pack[0] >= 0 && pack[1] >= 0 &&		\
+	    pack[2] >= 0 && pack[3] >= depth) {		\
+		out.fragm.sse_data = pack;		\
+		out.data_id = id;			\
+		buf[pix_ind] = out;			\
+	}						\
+} while (0)
+
+#define _process_no_zbuf				\
+do {							\
+	if (pack[0] >= 0 && pack[1] >= 0 &&		\
+	    pack[2] >= 0 && pack[3] >=			\
+	    std::numeric_limits<float>::min()) {	\
+		out.fragm.sse_data = pack;		\
+		out.data_id = id;			\
+		buf[pix_ind] = out;			\
+	}						\
+} while (0)
+		Out out;
+		for (uint32_t y = min_r.y; y <= max_r.y; ++y) {
+			Vec4 pack = pack_0;
+			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
+				uint32_t pix_ind = x + y * TILE_SIZE;
+				if (_zbuf == decltype(_zbuf)::ACTIVE) {
+					_process_zbuf;
+				} else {
+					_process_no_zbuf;
+				}
+				pack = pack + pack_dx;
+			}
+			pack_0 = pack_0 + pack_dy;
+		}
+#undef _process_zbuf
+#undef _process_no_zbuf
+	}
+
+	inline void ProcessAccepted(Vec4 pack_0, Vec4 const &pack_dx,
+		Vec4 const &pack_dy, Tile<Out> &buf, uint32_t id) const
+	{
+#define _process_zbuf					\
+do {							\
+	float depth = (buf[pix_ind].fragm.depth);	\
+	if (pack[3] >= depth) {				\
+		out.fragm.sse_data = pack;		\
+		out.data_id = id;			\
+		buf[pix_ind] = out;			\
+	}						\
+} while (0)
+
+#define _process_no_zbuf		\
+do {					\
+	out.fragm.sse_data = pack;	\
+	out.data_id = id;		\
+	buf[pix_ind] = out;		\
+} while (0)
+		Out out;
+		for (uint32_t y = 0; y < TILE_SIZE; ++y) {
+			Vec4 pack = pack_0;
+			for (uint32_t x = 0; x < TILE_SIZE; ++x) {
+				uint32_t pix_ind = x + y * TILE_SIZE; // just inc
+				if (_zbuf == decltype(_zbuf)::ACTIVE) {
+					_process_zbuf;
+				} else {
+					_process_no_zbuf;
+				}
+				pack = pack + pack_dx;
+			}
+			pack_0 = pack_0 + pack_dy;
+		}
+#undef _process_zbuf
+#undef _process_no_zbuf
 	}
 };
 
@@ -641,12 +718,14 @@ private:
 	_FineRast     fine_rast;
 	_Interp          interp;
 
-	using Data  = typename _Setup::Data;
-	using Fragm = typename _FineRast::Out;
+	using Data      = typename _Setup::Data;
+	using BinOut    = typename _BinRast::Out;
+	using CoarseOut = typename _CoarseRast::Out;
+	using Fragm     = typename _FineRast::Out;
 
 	using DataBuf   = std::vector<Data>;
-	using BinBuf    = std::vector<std::vector<uint32_t>>;
-	using CoarseBuf = Bin<std::vector<uint32_t>>;
+	using BinBuf    = std::vector<std::vector<BinOut>>;
+	using CoarseBuf = Bin<std::vector<CoarseOut>>;
 	using FineBuf   = Tile<Fragm>;
 
 	std::vector<DataBuf>     data_buffs;
@@ -830,10 +909,8 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 		tile_coord.x += tile_id % BIN_SIZE;
 		tile_coord.y += (tile_id - tile_id % BIN_SIZE) / BIN_SIZE;
 
-		for (auto const &data_id : coarse_buf[tile_id]) {
-			fine_rast.Process(data_buf[data_id], data_id,
-					fine_buf, tile_coord);
-		}
+		for (auto const &out : coarse_buf[tile_id])
+			fine_rast.Process(data_buf, out, fine_buf, tile_coord);
 
 		Vec2i r0 = {.x = tile_coord.x * TILE_SIZE,
 			    .y = tile_coord.y * TILE_SIZE };

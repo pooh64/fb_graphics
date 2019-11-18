@@ -57,6 +57,10 @@ int main(int argc, char *argv[])
 
 #define DRAW_SKY
 #define DRAW_A6M
+//#define N_THREADS 4
+#define N_THREADS std::thread::hardware_concurrency()
+#define DRAWBACK
+#define N_FRAMES 200
 
 #ifdef DRAW_SKY
 	Pipeline<TexShader, TrSetupFrontCulling, TrBinRast,
@@ -65,24 +69,22 @@ int main(int argc, char *argv[])
 
 	tex_pipe.shader.tex_img = sky.tex;
 	tex_pipe.set_window(wnd);
-//	tex_pipe.add_concurrency(std::thread::hardware_concurrency());
-	tex_pipe.add_concurrency(1);
+	tex_pipe.add_concurrency(N_THREADS);
 
 #endif
 #ifdef DRAW_A6M
-	Pipeline<TexShader, TrSetupBackCulling, TrBinRast,
+	Pipeline<TexHighlShader, TrSetupBackCulling, TrBinRast,
 		TrCoarseRast, TrFineRast<FineRastZbufType::ACTIVE>,
 		TrInterp> hgl_pipe;
 
 	hgl_pipe.shader.tex_img = a6m.tex;
 	hgl_pipe.set_window(wnd);
-//	hgl_pipe.add_concurrency(std::thread::hardware_concurrency());
-	hgl_pipe.add_concurrency(1);
+	hgl_pipe.add_concurrency(N_THREADS);
 #endif
 
-	for (int i = 0; i < 500; ++i) {
-		float const rotspd = 3.1415 / 1000;
-		Mat4 view = view0 * MakeMat4Rotate(Vec3{0,1,0}, i * rotspd);
+	for (int i = 0; i < N_FRAMES; ++i) {
+		float const rotspd = 2 * 3.141593 / N_FRAMES;
+		Mat4 view = view0 * MakeMat4Rotate(Vec3{0,1,0}, (i+1) * rotspd);
 #ifdef DRAW_SKY
 		tex_pipe.shader.set_view(view, sky.scale);
 		tex_pipe.Accumulate(sky.prim_buf);
@@ -93,8 +95,10 @@ int main(int argc, char *argv[])
 		hgl_pipe.Accumulate(a6m.prim_buf);
 		hgl_pipe.Render(&(fb.buf[0]));
 #endif
+#ifdef DRAWBACK
 		fb.Update();
 		fb.Clear();
+#endif
 	}
 
 	return 0;
