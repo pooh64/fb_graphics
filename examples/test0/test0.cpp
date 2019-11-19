@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 #define DRAW_A6M
 //#define N_THREADS 4
 #define N_THREADS std::thread::hardware_concurrency()
-#define DRAWBACK
+//#define DRAWBACK
 #define N_FRAMES 500
 
 #ifdef DRAW_SKY
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 		TrCoarseRast, TrFineRast<FineRastZbufType::DISABLED>,
 		TrInterp> tex_pipe;
 
-	tex_pipe.shader.tex_img = sky.tex;
+	tex_pipe.shader.set_tex_img(sky.tex);
 	tex_pipe.set_window(wnd);
 	tex_pipe.add_concurrency(N_THREADS);
 
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 		TrCoarseRast, TrFineRast<FineRastZbufType::ACTIVE>,
 		TrInterp> hgl_pipe;
 
-	hgl_pipe.shader.tex_img = a6m.tex;
+	hgl_pipe.shader.set_tex_img(a6m.tex);
 	hgl_pipe.set_window(wnd);
 	hgl_pipe.add_concurrency(N_THREADS);
 #endif

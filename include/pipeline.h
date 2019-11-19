@@ -55,6 +55,14 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 				(Vec4{1, 1, 1, 1})));
 	}
 
+	void set_tex_img(PpmImg const *tex_img_)
+	{
+		tex_img = tex_img_;
+		tex_buf = &tex_img->buf[0];
+		tex_w = tex_img->w;
+		tex_h = tex_img->h;
+	}
+
 	VsOut VShader(VsIn const &in) const override
 	{
 		VsOut out;
@@ -68,6 +76,22 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 		return out;
 	}
 
+	PpmImg::Color FShaderGetColor(Vec2 const &tex) const
+	{
+		int32_t w = tex_w;
+		int32_t h = tex_h;
+
+		int32_t x = (tex.x * w) + 0.5f;
+		int32_t y = h - (tex.y * h) + 0.5f;
+
+		if (x >= w) x = x - 1;
+		if (y >= h) y = h - 1;
+		if (x < 0)  x = 0;
+		if (y < 0)  y = 0;
+
+		return tex_img->buf[x + w * y];
+	}
+
 	virtual FsOut FShader(FsIn const &in) const override = 0;
 
 protected:
@@ -77,28 +101,18 @@ protected:
 	Mat4 norm_mat;
 
 	Vec3 light;
+	PpmImg const *tex_img;
+	PpmImg::Color const *tex_buf;
+	int32_t tex_w, tex_h;
 };
 
 struct TexShader final: public ModelShader {
 public:
 	FsOut FShader(FsIn const &in) const override
 	{
-		int32_t w = tex_img->w;
-		int32_t h = tex_img->h;
-
-		int32_t x = (in.tex.x * w) + 0.5f;
-		int32_t y = h - (in.tex.y * h) + 0.5f;
-
-		if (x >= w)	x = w - 1;
-		if (y >= h)	y = h - 1;
-		if (x < 0)	x = 0;
-		if (y < 0)	y = 0;
-
-		PpmImg::Color c = tex_img->buf[x + w * y];
-		//PpmImg::Color c { 200, 200, 200 };
+		auto c = FShaderGetColor(in.tex);
 		return Fbuffer::Color { c.b, c.g, c.r, 255 };
 	}
-	PpmImg const *tex_img;
 };
 
 struct TexHighlShader final: public ModelShader {
@@ -118,23 +132,11 @@ public:
 			       0.24f * dot_d +
 			       0.40f * std::pow(dot_s, 32);
 
-		int32_t w = tex_img->w;
-		int32_t h = tex_img->h;
-
-		int32_t x = (in.tex.x * w) + 0.5f;
-		int32_t y = h - (in.tex.y * h) + 0.5f;
-
-		if (x >= w)	x = w - 1;
-		if (y >= h)	y = h - 1;
-		if (x < 0)	x = 0;
-		if (y < 0)	y = 0;
-
-		PpmImg::Color c = tex_img->buf[x + w * y];
+		auto c = FShaderGetColor(in.tex);
 		return Fbuffer::Color { uint8_t(c.b * intens),
 					uint8_t(c.g * intens),
 					uint8_t(c.r * intens), 255 };
 	}
-	PpmImg const *tex_img;
 };
 
 // spec
@@ -519,7 +521,7 @@ struct FineRast {
 		Fragm fragm;
 		uint32_t data_id;
 	};
-	virtual void Process(std::vector<Data> const &, In,
+	virtual bool Process(std::vector<Data> const &, In,
 			Tile<Out> &, Vec2i const &) const = 0;
 	virtual void set_window(Window const &) = 0;
 	virtual void ClearBuf(Tile<Out> &) const = 0;
@@ -550,7 +552,7 @@ struct TrFineRast : public FineRast<TrData, TrOverlapInfo, TrFragm> {
 		return fragm.depth != TrFreeDepth;
 	}
 
-	void Process(std::vector<TrData> const &data_buf, In in,
+	bool Process(std::vector<TrData> const &data_buf, In in,
 			Tile<Out> &buf, Vec2i const &crd) const override
 	{
 		auto const &data = data_buf[in.id];
@@ -587,7 +589,7 @@ struct TrFineRast : public FineRast<TrData, TrOverlapInfo, TrFragm> {
 			Vec4 pack_0 { 1, 0, 0, tr[0].z };
 			pack_0 = pack_0 + rel_0.x * pack_dx + rel_0.y * pack_dy;
 			ProcessAccepted(pack_0, pack_dx, pack_dy, buf, in.id);
-			return;
+			return true;
 		}
 
 		Vec2i min_r, max_r;
@@ -609,6 +611,7 @@ struct TrFineRast : public FineRast<TrData, TrOverlapInfo, TrFragm> {
 
 		ProcessOverlapped(min_r, max_r, pack_0,
 				pack_dx, pack_dy, buf, in.id);
+		return false;
 	}
 
 private:
@@ -945,6 +948,8 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 	if (bin_count == 0)
 		return;
 
+	_Shader loc_shader = shader;
+
 	for (uint32_t tile_id = 0; tile_id < coarse_buf.size(); ++tile_id) {
 		if (coarse_buf[tile_id].size() == 0)
 			continue;
@@ -956,15 +961,40 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 		tile_coord.x += tile_id % BIN_SIZE;
 		tile_coord.y += (tile_id - tile_id % BIN_SIZE) / BIN_SIZE;
 
-		for (auto const &out : coarse_buf[tile_id])
-			fine_rast.Process(data_buf, out, fine_buf, tile_coord);
+		bool full = false;
+		for (auto const &out : coarse_buf[tile_id]) {
+			full |= fine_rast.Process(data_buf, out, fine_buf,
+					tile_coord);
+		}
 
 		Vec2i r0 = {.x = tile_coord.x * TILE_SIZE,
 			    .y = tile_coord.y * TILE_SIZE };
+
+		if (full)
+			goto shade_full;
+		else
+			goto shade_default;
+
+shade_full:
 		for (int32_t y = 0; y < TILE_SIZE; ++y) {
 			for (int32_t x = 0; x < TILE_SIZE; ++x) {
 				uint32_t fragm_ind = x + TILE_SIZE * y;
+				auto const &fine_out = fine_buf[fragm_ind];
+				auto const &fragm = fine_out.fragm;
+				auto const &data = data_buf[fine_out.data_id];
 
+				auto inp_out = interp.Process(data, fragm);
+				Vec2i r = {.x = r0.x + x, .y = r0.y + y};
+				uint32_t cbuf_ind = r.x + r.y * w_pix;
+				cbuf[cbuf_ind] = loc_shader.FShader(inp_out);
+			}
+		}
+		continue;
+
+shade_default:
+		for (int32_t y = 0; y < TILE_SIZE; ++y) {
+			for (int32_t x = 0; x < TILE_SIZE; ++x) {
+				uint32_t fragm_ind = x + TILE_SIZE * y;
 				auto const &fine_out = fine_buf[fragm_ind];
 				auto const &fragm = fine_out.fragm;
 				if (fine_rast.Check(fragm) == false)
@@ -974,7 +1004,7 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 				auto inp_out = interp.Process(data, fragm);
 				Vec2i r = {.x = r0.x + x, .y = r0.y + y};
 				uint32_t cbuf_ind = r.x + r.y * w_pix;
-				cbuf[cbuf_ind] = shader.FShader(inp_out);
+				cbuf[cbuf_ind] = loc_shader.FShader(inp_out);
 			}
 		}
 	}
