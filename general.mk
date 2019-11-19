@@ -16,7 +16,7 @@ CPPFLAGS = -std=c++17 -I$(SELF_DIR)
 # CPPFLAGS += -frename-registers -funroll-loops -ffast-math -fno-signed-zeros -fno-trapping-math
 
 #CPPFLAGS += -Wall
-#CPPFLAGS += -g
+CPPFLAGS += -g
 #CPPFLAGS += -fsanitize=address
 #LDFLAGS  += -fsanitize=address
 #CPPFLAGS += -fsanitize=thread

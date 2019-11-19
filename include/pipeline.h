@@ -250,7 +250,7 @@ template <typename _data, typename _out>
 struct BinRast {
 	using Data = _data;
 	using Out = _out;
-	virtual void Process(Data const &, uint32_t,
+	virtual void Process(std::vector<Data> const &, uint32_t,
 		std::vector<std::vector<Out>> &) const = 0;
 	virtual void set_window(Window const &) = 0;
 };
@@ -339,9 +339,6 @@ private:
 		e.cy = v1.x - v0.x;
 		e.c0 = v0.x * v1.y - v0.y * v1.x;
 		upd_rej_mult(e);
-
-		//printf("(%lg, %lg) (%lg, %lg)\n", v0.x, v0.y, v1.x, v1.y);
-		//printf("(%lg, %lg), %lg\n", e.cx, e.cy, e.c0);
 	}
 
 	void upd_rej_mult(Edge &e) // from chunk center
@@ -359,7 +356,7 @@ private:
 
 
 // spec
-struct TrBinRast final : public BinRast<TrData, uint32_t> {
+struct TrBinRast final : public BinRast<TrData, TrOverlapInfo> {
 	int32_t w_bins, h_bins;
 	void set_window(Window const &wnd) override
 	{
@@ -367,9 +364,10 @@ struct TrBinRast final : public BinRast<TrData, uint32_t> {
 		h_bins = DivRoundUp(wnd.h, BIN_PIX);
 	}
 
-	void Process(Data const &data, uint32_t id,
+	void Process(std::vector<Data> const &data_buf, uint32_t id,
 		std::vector<std::vector<Out>> &buf) const override
 	{
+		auto const &data = data_buf[id];
 		Vec2i min_r, max_r;
 		GetTrBounds(data, min_r, max_r); // move in data???
 
@@ -378,13 +376,31 @@ struct TrBinRast final : public BinRast<TrData, uint32_t> {
 		max_r.x = DivRoundUp(max_r.x, BIN_PIX);
 		max_r.y = DivRoundUp(max_r.y, BIN_PIX);
 
-		ClipBounds(min_r, max_r,
+		ClipBounds(min_r, max_r,	// Screen culling
 				Vec2i{0, 0},
 				Vec2i{w_bins - 1, h_bins - 1});
 
+		Vec3 tr_vec[3] = { ReinterpVec3(data[0].pos),
+				   ReinterpVec3(data[1].pos),
+				   ReinterpVec3(data[2].pos) };
+		TrEdgeEqn eqn;
+		float rej[3];
+		float acc[3];
+
+		eqn.set(tr_vec);
+		eqn.get_reject(float(BIN_PIX), rej);
+		eqn.get_accept(float(BIN_PIX), acc);
+
+		Out out = {.id = id};
 		for (uint32_t y = min_r.y; y <= max_r.y; ++y) {
-			for (uint32_t x = min_r.x; x <= max_r.x; ++x)
-				buf[x + y * w_bins].push_back(id);
+			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
+				Vec2i vec {int32_t(x * BIN_PIX),
+					   int32_t(y * BIN_PIX)};
+				if (eqn.try_reject(vec, rej))
+					continue;
+				out.accepted = eqn.try_accept(vec, acc);
+				buf[x + y * w_bins].push_back(out);
+			}
 		}
 	}
 };
@@ -395,13 +411,13 @@ struct CoarseRast {
 	using Data = _data;
 	using In  = _in;
 	using Out = _out;
-	virtual void Process(Data const &, In,
+	virtual void Process(std::vector<Data> const &, In,
 			Bin<std::vector<Out>> &, Vec2i const &) const = 0;
 	virtual void set_window(Window const &) = 0;
 };
 
 // spec
-struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, TrOverlapInfo> {
+struct TrCoarseRast final : public CoarseRast<TrData, TrOverlapInfo, TrOverlapInfo> {
 	int32_t w_tiles, h_tiles;
 	void set_window(Window const &wnd) override
 	{
@@ -409,10 +425,43 @@ struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, TrOverlapInfo> {
 		h_tiles = DivRoundUp(wnd.h, TILE_SIZE);
 	}
 
-	// bin -> crd
-	void Process(Data const &data, In in,
+	void Process(std::vector<Data> const &data_buf, In in,
 		Bin<std::vector<Out>> &buf, Vec2i const &bin) const override
 	{
+		if (in.accepted)
+			ProcessAccepted(in, buf, bin);
+		else
+			ProcessOverlapped(data_buf, in, buf, bin);
+	}
+
+private:
+	void ProcessAccepted(In in, Bin<std::vector<Out>> &buf, Vec2i const &bin) const
+	{
+		Vec2i min_r {bin.x * BIN_SIZE,
+			     bin.y * BIN_SIZE};
+		Vec2i max_r {(bin.x + 1) * BIN_SIZE - 1,
+			     (bin.y + 1) * BIN_SIZE - 1};
+
+		if (min_r.x > (w_tiles - 1) || min_r.y > (h_tiles - 1))
+			return; // discard
+
+		max_r.x = std::min(max_r.x, w_tiles - 1);
+		max_r.y = std::min(max_r.y, h_tiles - 1);
+
+		max_r.x = max_r.x % BIN_SIZE;
+		max_r.y = max_r.y % BIN_SIZE;
+
+		for (uint32_t y = 0; y <= max_r.y; ++y) {
+			for (uint32_t x = 0; x <= max_r.x; ++x)
+				buf[x + y * BIN_SIZE].push_back(in);
+		}
+	}
+
+	// bin -> crd
+	void ProcessOverlapped(std::vector<Data> const &data_buf, In in,
+		Bin<std::vector<Out>> &buf, Vec2i const &bin) const
+	{
+		auto const &data = data_buf[in.id];
 		Vec2i min_r, max_r;
 		GetTrBounds(data, min_r, max_r); // move in data???
 
@@ -425,13 +474,12 @@ struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, TrOverlapInfo> {
 				Vec2i{bin.x * BIN_SIZE, bin.y * BIN_SIZE},
 				Vec2i{(bin.x + 1) * BIN_SIZE - 1,
 				      (bin.y + 1) * BIN_SIZE - 1});
-		ClipBounds(min_r, max_r,
+		ClipBounds(min_r, max_r,	// Screen culling
 				Vec2i{0, 0},
 				Vec2i{w_tiles - 1, h_tiles - 1});
 
 		min_r.x = min_r.x % BIN_SIZE;
 		min_r.y = min_r.y % BIN_SIZE;
-
 		max_r.x = max_r.x % BIN_SIZE;
 		max_r.y = max_r.y % BIN_SIZE;
 
@@ -452,12 +500,10 @@ struct TrCoarseRast final : public CoarseRast<TrData, uint32_t, TrOverlapInfo> {
 					   * TILE_SIZE,
 					   (bin.y * BIN_SIZE + int32_t(y))
 				           * TILE_SIZE};
-				Out out = {.id = in, .accepted = false};
 				if (eqn.try_reject(vec, rej))
 					continue;
-				if (eqn.try_accept(vec, acc))
-					out.accepted = true;
-				buf[x + y * BIN_SIZE].push_back(out);
+				in.accepted = eqn.try_accept(vec, acc);
+				buf[x + y * BIN_SIZE].push_back(in);
 			}
 		}
 	}
@@ -541,6 +587,7 @@ struct TrFineRast : public FineRast<TrData, TrOverlapInfo, TrFragm> {
 			Vec4 pack_0 { 1, 0, 0, tr[0].z };
 			pack_0 = pack_0 + rel_0.x * pack_dx + rel_0.y * pack_dy;
 			ProcessAccepted(pack_0, pack_dx, pack_dy, buf, in.id);
+			return;
 		}
 
 		Vec2i min_r, max_r;
@@ -866,7 +913,7 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 	auto &bin_buf = bin_buffs[thread_id];
 
 	for (uint32_t i = task.beg; i < task.end; ++i)
-		bin_rast.Process(data_buf[i], i, bin_buf);
+		bin_rast.Process(data_buf, i, bin_buf);
 }
 
 template <typename _shader,      template<typename> class _setup,
@@ -889,8 +936,8 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 
 	uint32_t bin_count = 0;
 	for (auto const &bin_buf : bin_buffs) {
-		for (auto const &data_id : bin_buf[bin_id]) {
-			coarse_rast.Process(data_buf[data_id], data_id,
+		for (auto const &out : bin_buf[bin_id]) {
+			coarse_rast.Process(data_buf, out,
 					coarse_buf, bin_coord);
 			++bin_count;
 		}

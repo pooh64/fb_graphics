@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 //#define N_THREADS 4
 #define N_THREADS std::thread::hardware_concurrency()
 #define DRAWBACK
-#define N_FRAMES 200
+#define N_FRAMES 500
 
 #ifdef DRAW_SKY
 	Pipeline<TexShader, TrSetupFrontCulling, TrBinRast,
