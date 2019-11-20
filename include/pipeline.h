@@ -1,5 +1,9 @@
 #pragma once
 
+//#define HACK_TRINTERP_LINEAR
+//#define HACK_TRSHADER_NO_BOUNDS
+//#define HACK_DRAWBIN_NO_DRAWBACK
+
 #include <include/tile.h>
 #include <include/fbuffer.h>
 #include <include/geom.h>
@@ -84,11 +88,12 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 		int32_t x = (tex.x * w) + 0.5f;
 		int32_t y = h - (tex.y * h) + 0.5f;
 
-		if (x >= w) x = x - 1;
+#ifndef HACK_TRSHADER_NO_BOUNDS
+		if (x >= w) x = w - 1;
 		if (y >= h) y = h - 1;
 		if (x < 0)  x = 0;
 		if (y < 0)  y = 0;
-
+#endif
 		return tex_img->buf[x + w * y];
 	}
 
@@ -180,7 +185,7 @@ struct Setup
 };
 
 //spec
-template <SetupCullingType _cul, typename _shader>
+template <SetupCullingType _type, typename _shader>
 struct TrSetup : public Setup<TrPrim, TrData, _shader> {
 	using Base = Setup<TrPrim, TrData, _shader>;
 	using In      = typename Base::In;
@@ -195,7 +200,7 @@ struct TrSetup : public Setup<TrPrim, TrData, _shader> {
 				return;
 		}
 
-		if (_cul != decltype(_cul)::NO_CULLING) {
+		if (_type != decltype(_type)::NO_CULLING) {
 			Vec3 tr[3] = { ReinterpVec3(data[0].pos),
 				       ReinterpVec3(data[1].pos),
 				       ReinterpVec3(data[2].pos)};
@@ -206,10 +211,10 @@ struct TrSetup : public Setup<TrPrim, TrData, _shader> {
 			Vec2 d2 = { d2_3.x, d2_3.y };
 
 			float det = d1.x * d2.y - d1.y * d2.x;
-			if (_cul == decltype(_cul)::BACK) { // wtf
+			if (_type == decltype(_type)::BACK) { // wtf
 				if (det >= 0)
 					return;
-			} else if (_cul == decltype(_cul)::FRONT) {
+			} else if (_type == decltype(_type)::FRONT) {
 				if (det <= 0)
 					return;
 				auto tmp = data[0];
@@ -534,7 +539,7 @@ enum class FineRastZbufType {
 };
 
 // spec
-template <FineRastZbufType _zbuf>
+template <FineRastZbufType _type>
 struct TrFineRast : public FineRast<TrData, TrOverlapInfo, TrFragm> {
 	void set_window(Window const &wnd) override
 	{
@@ -577,7 +582,7 @@ struct TrFineRast : public FineRast<TrData, TrOverlapInfo, TrFragm> {
 
 		Vec4 pack_dx = { bc_d0_x, bc_d1_x, bc_d2_x};
 		Vec4 pack_dy = { bc_d0_y, bc_d1_y, bc_d2_y};
-		if (_zbuf == decltype(_zbuf)::ACTIVE) {
+		if (_type == decltype(_type)::ACTIVE) {
 			Vec4 depth_vec = { tr[0].z, tr[1].z, tr[2].z, 0 };
 			pack_dx[3] = DotProd3(pack_dx, depth_vec);
 			pack_dy[3] = DotProd3(pack_dy, depth_vec);
@@ -645,7 +650,7 @@ do {							\
 			Vec4 pack = pack_0;
 			for (uint32_t x = min_r.x; x <= max_r.x; ++x) {
 				uint32_t pix_ind = x + y * TILE_SIZE;
-				if (_zbuf == decltype(_zbuf)::ACTIVE) {
+				if (_type == decltype(_type)::ACTIVE) {
 					_process_zbuf;
 				} else {
 					_process_no_zbuf;
@@ -682,7 +687,7 @@ do {					\
 			Vec4 pack = pack_0;
 			for (uint32_t x = 0; x < TILE_SIZE; ++x) {
 				uint32_t pix_ind = x + y * TILE_SIZE; // just inc
-				if (_zbuf == decltype(_zbuf)::ACTIVE) {
+				if (_type == decltype(_type)::ACTIVE) {
 					_process_zbuf;
 				} else {
 					_process_no_zbuf;
@@ -705,16 +710,25 @@ struct Interp {
 	virtual Out Process(Data const &, Fragm const &) const = 0;
 };
 
+enum class TrInterpType {
+	ALL,
+	TEXTURE,
+};
+
 //spec
-struct TrInterp final: public Interp<TrData, TrFragm, Vertex> {
+template<TrInterpType _type>
+struct TrInterp: public Interp<TrData, TrFragm, Vertex> {
 	Out Process(Data const &tr, Fragm const &fragm)	const override
 	{
 		Vertex v;
-		v.pos  = Vec3 {0, 0, 0};
+		if (_type == decltype(_type)::ALL) {
+			v.pos  = Vec3 {0, 0, 0};
+			v.norm = Vec3 {0, 0, 0};
+		}
 		v.tex  = Vec2 {0, 0};
-		v.norm = Vec3 {0, 0, 0};
 		Vec3 bc_corr {fragm.bc[0], fragm.bc[1], fragm.bc[2]};
 
+#ifndef HACK_TRINTERP_LINEAR
 		for (int i = 0; i < 3; ++i)
 			bc_corr[i] = bc_corr[i] / tr[i].pos.z;
 
@@ -724,14 +738,18 @@ struct TrInterp final: public Interp<TrData, TrFragm, Vertex> {
 
 		for (int i = 0; i < 3; ++i)
 			bc_corr[i] = bc_corr[i] / mp;
+#endif
 
 		for (int i = 0; i < 3; ++i) {
-			v.pos  = v.pos  + bc_corr[i] * tr[i].fs_vtx.pos;
-			v.norm = v.norm + bc_corr[i] * tr[i].fs_vtx.norm;
+			if (_type == decltype(_type)::ALL) {
+				v.pos  = v.pos  + bc_corr[i] * tr[i].fs_vtx.pos;
+				v.norm = v.norm + bc_corr[i] * tr[i].fs_vtx.norm;
+			}
 			v.tex  = v.tex  + bc_corr[i] * tr[i].fs_vtx.tex;
 		}
 
-		v.norm = Normalize(v.norm);
+		if (_type == decltype(_type)::ALL)
+			v.norm = Normalize(v.norm);
 		return v;
 	}
 };
@@ -750,8 +768,8 @@ struct Pipeline {
 
 	void Accumulate(InputBuf const &_inp_buf);
 	void Render(Fbuffer::Color *cbuf);
-	void add_concurrency(uint32_t n_threads);
 	void set_window(Window const &wnd);
+	void set_sync_tp(SyncThreadpool *sync_tp_);
 private:
 	uint32_t w_bins = 0;
 	uint32_t h_bins = 0;
@@ -784,7 +802,7 @@ private:
 	std::vector<FineBuf>     fine_buffs;
 
 	/* Threading & routines */
-	SyncThreadpool sync_tp;
+	SyncThreadpool *sync_tp;
 
 	struct Task {
 		uint32_t beg;
@@ -826,10 +844,10 @@ template <typename _shader,      template<typename> class _setup,
 	  typename _bin_rast,    typename _coarse_rast, typename _fine_rast,
 	   typename _interp>
 void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
-      _interp>::add_concurrency(uint32_t n_threads)
+      _interp>::set_sync_tp(SyncThreadpool *sync_tp_)
 {
-	sync_tp.add_concurrency(n_threads);
-	n_threads = sync_tp.get_concurrency();
+	sync_tp = sync_tp_;
+	uint32_t n_threads = sync_tp->get_concurrency();
 
 	  data_buffs.resize(n_threads);
 	   bin_buffs.resize(n_threads);
@@ -842,11 +860,11 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 
 #define pipeline_execute_tasks(_routine)				\
 do {									\
-	sync_tp.set_tasks(std::bind(&Pipeline::_routine, this,		\
+	sync_tp->set_tasks(std::bind(&Pipeline::_routine, this,		\
 		std::placeholders::_1, std::placeholders::_2),		\
 			task_buf.size());				\
-	sync_tp.run();							\
-	sync_tp.wait_completion();					\
+	sync_tp->run();							\
+	sync_tp->wait_completion();					\
 	task_buf.clear();						\
 } while (0)
 
@@ -974,7 +992,6 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 			goto shade_full;
 		else
 			goto shade_default;
-
 shade_full:
 		for (int32_t y = 0; y < TILE_SIZE; ++y) {
 			for (int32_t x = 0; x < TILE_SIZE; ++x) {
@@ -986,7 +1003,11 @@ shade_full:
 				auto inp_out = interp.Process(data, fragm);
 				Vec2i r = {.x = r0.x + x, .y = r0.y + y};
 				uint32_t cbuf_ind = r.x + r.y * w_pix;
+#ifndef HACK_DRAWBIN_NO_DRAWBACK
 				cbuf[cbuf_ind] = loc_shader.FShader(inp_out);
+#else
+				cbuf[0] = loc_shader.FShader(inp_out);
+#endif
 			}
 		}
 		continue;
@@ -1004,7 +1025,11 @@ shade_default:
 				auto inp_out = interp.Process(data, fragm);
 				Vec2i r = {.x = r0.x + x, .y = r0.y + y};
 				uint32_t cbuf_ind = r.x + r.y * w_pix;
+#ifndef HACK_DRAWBIN_NO_DRAWBACK
 				cbuf[cbuf_ind] = loc_shader.FShader(inp_out);
+#else
+				cbuf[0] = loc_shader.FShader(inp_out);
+#endif
 			}
 		}
 	}
@@ -1021,7 +1046,7 @@ void Pipeline<_shader, _setup, _bin_rast, _coarse_rast, _fine_rast,
 	cur_inp_buf = &inp_buf;
 	setup.shader = shader;
 
-	pipeline_split_tasks(inp_buf, 32); // bigger chunks for better coherency
+	pipeline_split_tasks(inp_buf, 256); // bigger chunks for better coherency
 	pipeline_execute_tasks(SetupProcessRoutine);
 
 	pipeline_merge_tasks(data_buffs);

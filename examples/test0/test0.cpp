@@ -1,3 +1,15 @@
+#define HACK_TRINTERP_LINEAR
+#define HACK_TRSHADER_NO_BOUNDS
+#define HACK_DRAWBIN_NO_DRAWBACK
+
+#define DRAW_SKY
+#define DRAW_A6M
+//#define N_THREADS 4
+#define N_THREADS std::thread::hardware_concurrency()
+//#define DRAWBACK
+#define N_FRAMES 1000
+
+
 #include <include/fbuffer.h>
 #include <include/mouse.h>
 #include <include/pipeline.h>
@@ -55,31 +67,27 @@ int main(int argc, char *argv[])
 	Mat4 view0 = MakeMat4Translate(Vec3{0,0,1});
 #endif
 
-#define DRAW_SKY
-#define DRAW_A6M
-//#define N_THREADS 4
-#define N_THREADS std::thread::hardware_concurrency()
-//#define DRAWBACK
-#define N_FRAMES 500
+	SyncThreadpool sync_tp;
+	sync_tp.add_concurrency(N_THREADS);
 
 #ifdef DRAW_SKY
 	Pipeline<TexShader, TrSetupFrontCulling, TrBinRast,
 		TrCoarseRast, TrFineRast<FineRastZbufType::DISABLED>,
-		TrInterp> tex_pipe;
+		TrInterp<TrInterpType::TEXTURE>> tex_pipe;
 
 	tex_pipe.shader.set_tex_img(sky.tex);
 	tex_pipe.set_window(wnd);
-	tex_pipe.add_concurrency(N_THREADS);
+	tex_pipe.set_sync_tp(&sync_tp);
 
 #endif
 #ifdef DRAW_A6M
 	Pipeline<TexHighlShader, TrSetupBackCulling, TrBinRast,
 		TrCoarseRast, TrFineRast<FineRastZbufType::ACTIVE>,
-		TrInterp> hgl_pipe;
+		TrInterp<TrInterpType::ALL>> hgl_pipe;
 
 	hgl_pipe.shader.set_tex_img(a6m.tex);
 	hgl_pipe.set_window(wnd);
-	hgl_pipe.add_concurrency(N_THREADS);
+	hgl_pipe.set_sync_tp(&sync_tp);
 #endif
 
 	for (int i = 0; i < N_FRAMES; ++i) {
@@ -97,7 +105,7 @@ int main(int argc, char *argv[])
 #endif
 #ifdef DRAWBACK
 		fb.Update();
-		fb.Clear();
+		//fb.Clear();
 #endif
 	}
 
