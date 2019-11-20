@@ -25,7 +25,8 @@ int Fbuffer::Init(const char *path)
 	if (ioctl(fd, FBIOGET_FSCREENINFO, (fb_fix_screeninfo *)this) < 0)
 		goto handle_err_1;
 
-	buf = (Color*) malloc(sizeof(Color) * xres * yres);
+	// tmp for bigger tiles
+	buf = (Color*) malloc(sizeof(Color) * xres * yres * 1.5);
 	if (buf == NULL)
 		goto handle_err_1;
 

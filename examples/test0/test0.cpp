@@ -1,18 +1,17 @@
 #define HACK_TRINTERP_LINEAR
 #define HACK_TRSHADER_NO_BOUNDS
-#define HACK_DRAWBIN_NO_DRAWBACK
+//#define HACK_DRAWBIN_NO_DRAWBACK
 
 #define DRAW_SKY
 #define DRAW_A6M
 //#define N_THREADS 4
 #define N_THREADS std::thread::hardware_concurrency()
-//#define DRAWBACK
+#define DRAWBACK
 #define N_FRAMES 1000
-
 
 #include <include/fbuffer.h>
 #include <include/mouse.h>
-#include <include/pipeline.h>
+#include <include/tr_pipeline.h>
 #include <include/wfobj.h>
 #include <iostream>
 #include <chrono>
@@ -72,7 +71,7 @@ int main(int argc, char *argv[])
 
 #ifdef DRAW_SKY
 	Pipeline<TexShader, TrSetupFrontCulling, TrBinRast,
-		TrCoarseRast, TrFineRast<FineRastZbufType::DISABLED>,
+		TrCoarseRast, TrFineRast<TrFineRastZbufType::DISABLED>,
 		TrInterp<TrInterpType::TEXTURE>> tex_pipe;
 
 	tex_pipe.shader.set_tex_img(sky.tex);
@@ -82,7 +81,7 @@ int main(int argc, char *argv[])
 #endif
 #ifdef DRAW_A6M
 	Pipeline<TexHighlShader, TrSetupBackCulling, TrBinRast,
-		TrCoarseRast, TrFineRast<FineRastZbufType::ACTIVE>,
+		TrCoarseRast, TrFineRast<TrFineRastZbufType::ACTIVE>,
 		TrInterp<TrInterpType::ALL>> hgl_pipe;
 
 	hgl_pipe.shader.set_tex_img(a6m.tex);

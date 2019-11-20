@@ -2,13 +2,9 @@
 
 #include <include/pipeline.h>
 
-#if 0
-// shaders now in pipeline
-{{{
+//#define HACK_TRSHADER_NO_BOUNDS
 
 struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
-	PpmImg const *tex_img;
-
 	void set_window(Window const &wnd) override
 	{
 		vp_tr.set_window(wnd);
@@ -26,11 +22,21 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 
 	void set_view(Mat4 const &view, float scale) override
 	{
-		modelview_mat = MakeMat4Scale(scale) * view;
+		Mat4 scale_mat = MakeMat4Scale(Vec3{scale, scale, scale});
+		modelview_mat = view * scale_mat;
+
 		norm_mat = Transpose(Inverse(modelview_mat));
 
 		light = Normalize(ReinterpVec3(norm_mat *
 				(Vec4{1, 1, 1, 1})));
+	}
+
+	void set_tex_img(PpmImg const *tex_img_)
+	{
+		tex_img = tex_img_;
+		tex_buf = &tex_img->buf[0];
+		tex_w = tex_img->w;
+		tex_h = tex_img->h;
 	}
 
 	VsOut VShader(VsIn const &in) const override
@@ -46,41 +52,48 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 		return out;
 	}
 
+	PpmImg::Color FShaderGetColor(Vec2 const &tex) const
+	{
+		int32_t w = tex_w;
+		int32_t h = tex_h;
+
+		int32_t x = (tex.x * w) + 0.5f;
+		int32_t y = h - (tex.y * h) + 0.5f;
+
+#ifndef HACK_TRSHADER_NO_BOUNDS
+		if (x >= w) x = w - 1;
+		if (y >= h) y = h - 1;
+		if (x < 0)  x = 0;
+		if (y < 0)  y = 0;
+#endif
+		return tex_img->buf[x + w * y];
+	}
+
 	virtual FsOut FShader(FsIn const &in) const override = 0;
 
-private:
+protected:
 	ViewportTransform vp_tr;
 	Mat4 modelview_mat;
 	Mat4 proj_mat;
 	Mat4 norm_mat;
 
 	Vec3 light;
+	PpmImg const *tex_img;
+	PpmImg::Color const *tex_buf;
+	int32_t tex_w, tex_h;
 };
-
 
 struct TexShader final: public ModelShader {
 public:
 	FsOut FShader(FsIn const &in) const override
 	{
-		int32_t w = tex_img->w;
-		int32_t h = tex_img->h;
-
-		int32_t x = (in.tex.x * w) + 0.5f;
-		int32_t y = h - (in.tex.y * h) + 0.5f;
-
-		if (x >= w)	x = w - 1;
-		if (y >= h)	y = h - 1;
-		if (x < 0)	x = 0;
-		if (y < 0)	y = 0;
-
-		PpmImg::Color c = tex_img->buf[x + w * y];
+		auto c = FShaderGetColor(in.tex);
 		return Fbuffer::Color { c.b, c.g, c.r, 255 };
 	}
 };
 
 struct TexHighlShader final: public ModelShader {
 public:
-	Vec3 light;
 	FsOut FShader(FsIn const &in) const override
 	{
 		Vec3 light_dir = light;
@@ -92,26 +105,13 @@ public:
 
 		dot_d = std::max(0.0f, dot_d);
 		dot_s = std::max(0.0f, dot_s);
-		float intens = 0.4f +
-			       0.25f * dot_d +
-			       0.35f * std::pow(dot_s, 32);
+		float intens = 0.35f +
+			       0.24f * dot_d +
+			       0.40f * std::pow(dot_s, 32);
 
-		int32_t w = tex_img->w;
-		int32_t h = tex_img->h;
-
-		int32_t x = (in.tex.x * w) + 0.5f;
-		int32_t y = h - (in.tex.y * h) + 0.5f;
-
-		if (x >= w)	x = w - 1;
-		if (y >= h)	y = h - 1;
-		if (x < 0)	x = 0;
-		if (y < 0)	y = 0;
-
-		PpmImg::Color c = tex_img->buf[x + w * y];
+		auto c = FShaderGetColor(in.tex);
 		return Fbuffer::Color { uint8_t(c.b * intens),
 					uint8_t(c.g * intens),
 					uint8_t(c.r * intens), 255 };
 	}
 };
-
-#endif
