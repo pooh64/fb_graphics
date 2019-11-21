@@ -424,7 +424,7 @@ inline Vec3 ToVec3(Vec4 const &v)
 
 inline Vec4 ToVec4(Vec3 const &v)
 {
-	return Vec4 { v.x, v.y, v.z, 1 };
+	return Vec4 { v.x, v.y, v.z, 1.0f };
 }
 
 inline Vec4 operator*(Mat4 const &m, Vec4 const &v)

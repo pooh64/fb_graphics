@@ -37,6 +37,7 @@ enum class TrFineRastZbufType {
 enum class TrInterpType {
 	ALL,
 	TEXTURE,
+	POS,
 };
 
 float constexpr TrFreeDepth = std::numeric_limits<float>::min();
@@ -52,37 +53,33 @@ struct TrSetup : public Setup<TrPrim, TrData, _shader> {
 		Data data;
 		for (int i = 0; i < in.size(); ++i) {
 			data[i] = Base::shader.VShader(in[i]);
-			if (data[i].fs_vtx.pos.z <= 0)
+			if (data[i].pos.w >= 0)
 				return;
 		}
+		Vec3 tr[3] = { ReinterpVec3(data[0].pos),
+			       ReinterpVec3(data[1].pos),
+			       ReinterpVec3(data[2].pos)};
 
-		if (_type != decltype(_type)::NO_CULLING) {
-			Vec3 tr[3] = { ReinterpVec3(data[0].pos),
-				       ReinterpVec3(data[1].pos),
-				       ReinterpVec3(data[2].pos)};
+		Vec3 d1_3 = tr[1] - tr[0];
+		Vec3 d2_3 = tr[2] - tr[0];
+		Vec2 d1 = { d1_3.x, d1_3.y };
+		Vec2 d2 = { d2_3.x, d2_3.y };
 
-			Vec3 d1_3 = tr[1] - tr[0];
-			Vec3 d2_3 = tr[2] - tr[0];
-			Vec2 d1 = { d1_3.x, d1_3.y };
-			Vec2 d2 = { d2_3.x, d2_3.y };
-
-			float det = d1.x * d2.y - d1.y * d2.x;
-			if (_type == decltype(_type)::BACK) { // wtf
-				if (det >= 0)
-					return;
-			} else if (_type == decltype(_type)::FRONT) {
-				if (det <= 0)
-					return;
+		float det = d1.x * d2.y - d1.y * d2.x;
+		if (_type == decltype(_type)::BACK) {
+			if (det >= 0)
+				return;
+		} else if (_type == decltype(_type)::FRONT) {
+			if (det <= 0)
+				return;
+			auto tmp = data[0];
+			data[0] = data[2];
+			data[2] = tmp;
+		} else if (_type == decltype(_type)::NO_CULLING) {
+			if (det >= 0) {
 				auto tmp = data[0];
 				data[0] = data[2];
 				data[2] = tmp;
-			} else {
-				assert("Not tested\n");
-				if (det >= 0) {
-					auto tmp = data[0];
-					data[0] = data[2];
-					data[2] = tmp;
-				}
 			}
 		}
 		out.push_back(data);
@@ -517,8 +514,14 @@ struct TrInterp: public Interp<TrData, TrFragm, Vertex> {
 		if (_type == decltype(_type)::ALL) {
 			v.pos  = Vec3 {0, 0, 0};
 			v.norm = Vec3 {0, 0, 0};
+			v.tex  = Vec2 {0, 0};
 		}
-		v.tex  = Vec2 {0, 0};
+		if (_type == decltype(_type)::TEXTURE) {
+			v.tex  = Vec2 {0, 0};
+		}
+		if (_type == decltype(_type)::POS) {
+			v.pos  = Vec3 {0, 0, 0};
+		}
 		Vec3 bc_corr {fragm.bc[0], fragm.bc[1], fragm.bc[2]};
 
 #ifndef HACK_TRINTERP_LINEAR
@@ -537,8 +540,14 @@ struct TrInterp: public Interp<TrData, TrFragm, Vertex> {
 			if (_type == decltype(_type)::ALL) {
 				v.pos  = v.pos  + bc_corr[i] * tr[i].fs_vtx.pos;
 				v.norm = v.norm + bc_corr[i] * tr[i].fs_vtx.norm;
+				v.tex  = v.tex  + bc_corr[i] * tr[i].fs_vtx.tex;
 			}
-			v.tex  = v.tex  + bc_corr[i] * tr[i].fs_vtx.tex;
+			if (_type == decltype(_type)::POS) {
+				v.pos  = v.pos  + bc_corr[i] * tr[i].fs_vtx.pos;
+			}
+			if (_type == decltype(_type)::TEXTURE) {
+				v.tex  = v.tex  + bc_corr[i] * tr[i].fs_vtx.tex;
+			}
 		}
 
 		if (_type == decltype(_type)::ALL)

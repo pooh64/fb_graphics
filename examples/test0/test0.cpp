@@ -9,6 +9,9 @@
 #define DRAWBACK
 #define N_FRAMES 1000
 
+#define TILE_SIZE 16
+#define BIN_SIZE 4
+
 #include <include/fbuffer.h>
 #include <include/mouse.h>
 #include <include/tr_pipeline.h>
@@ -16,14 +19,6 @@
 #include <iostream>
 #include <chrono>
 #include <utility>
-
-#include <cstring>
-
-extern "C"
-{
-#include <unistd.h>
-}
-
 
 struct Model {
 	std::vector<std::array<Vertex, 3>> prim_buf;
@@ -41,8 +36,8 @@ int main(int argc, char *argv[])
 	Model sky, a6m;
 
 	std::vector<Wfobj> obj_buf;
-	ImportWfobj("sky.obj", obj_buf);
-	ImportWfobj("A6M.obj", obj_buf);
+	assert(!ImportWfobj("sky.obj", obj_buf));
+	assert(!ImportWfobj("A6M.obj", obj_buf));
 
 	obj_buf[0].get_prim_buf(sky.prim_buf);
 	obj_buf[1].get_prim_buf(a6m.prim_buf);
@@ -57,14 +52,10 @@ int main(int argc, char *argv[])
 	Window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
 	 	       .f = z_avg * 100, .n = z_avg / 100 };
 
-#if 1
 	Vec3 eye {0, 0, 1};
 	Vec3 at  {0, 0, 0};
 	Vec3 up  {0, 1, 0};
 	Mat4 view0 = MakeMat4LookAt(eye, at, up);
-#else
-	Mat4 view0 = MakeMat4Translate(Vec3{0,0,1});
-#endif
 
 	SyncThreadpool sync_tp;
 	sync_tp.add_concurrency(N_THREADS);

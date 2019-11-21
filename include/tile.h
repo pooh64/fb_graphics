@@ -3,11 +3,7 @@
 #include <array>
 #include <cstdint>
 
-#define TILE_SIZE 16
-#define BIN_SIZE 8
-
-#define TILE_PIX TILE_SIZE
-#define BIN_PIX  (BIN_SIZE * TILE_PIX)
+#define BIN_PIX (BIN_SIZE * TILE_SIZE)
 
 template <typename _elem>
 using Tile = std::array<_elem, TILE_SIZE * TILE_SIZE>;

@@ -45,7 +45,12 @@ struct ModelShader : public Shader<Vertex, Vertex, Fbuffer::Color> {
 		Vec4 mv_pos = modelview_mat * ToVec4(in.pos);
 
 		out.fs_vtx.pos 	= ToVec3(mv_pos);
-		out.pos 	= ToVec4(vp_tr(ToVec3(proj_mat * mv_pos)));
+		//out.pos 	= ToVec4(vp_tr(ToVec3(proj_mat * mv_pos)));
+		Vec4 pr_pos = proj_mat * mv_pos;
+		float old_w = pr_pos.w;
+		out.pos     = ToVec4(vp_tr(ToVec3(pr_pos)));
+		out.pos.w   = old_w;
+
 		out.fs_vtx.norm = ToVec3(norm_mat * ToVec4(in.norm));
 		out.fs_vtx.tex 	= in.tex;
 

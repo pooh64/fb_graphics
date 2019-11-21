@@ -1,3 +1,3 @@
-example := matrix_test
+example := test1
 
 include ../template.mk

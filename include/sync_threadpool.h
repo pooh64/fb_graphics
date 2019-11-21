@@ -14,67 +14,68 @@ struct SyncThreadpoolEnv {
 private:
 	uint32_t n_threads = 0;
 	std::vector<std::thread> pool;
-
 	std::atomic<int> task_id;
 	std::function<void(int, int)> task;
+
+	size_t run_gen = 0;
+	std::atomic<int> n_run;
+	std::condition_variable cv_run;
+	std::mutex m_done;
 
 	bool start = false;
 	std::condition_variable cv_start;
 	std::mutex m_start;
-
-	size_t done_gen = 0;
-	std::atomic<int> n_done;
-	std::condition_variable cv_done;
-	std::mutex m_done;
-
 	bool ready = false;
 	std::condition_variable cv_ready;
 	std::mutex m_ready;
-
 	bool finish = false;
 
-	SyncThreadpoolEnv()
-	{
-		n_done = 0;
-	}
-
 	void worker(int worker_id);
+	bool start_barrier();
+	void run_barrier();
 };
 
-void SyncThreadpoolEnv::worker(int worker_id)
+inline void SyncThreadpoolEnv::worker(int worker_id)
 {
-	while (1) {
-		{
-			std::unique_lock<std::mutex> lk(m_start);
-			while (!start) cv_start.wait(lk);
-		}
-		if (finish)
-			return;
-
+	while (start_barrier()) {
 		int caught;
 		while ((caught = --task_id) >= 0)
 			task(worker_id, caught);
 
-		{
-			std::unique_lock<std::mutex> lk(m_done);
-			size_t gen = done_gen;
-			if (++n_done == n_threads) {
-				start = false;
-
-				n_done = 0;
-				++done_gen;
-				cv_done.notify_all();
-
-				{ /* Notify owner */
-					std::unique_lock lr_ready(m_ready);
-					ready = true;
-				}
-				cv_ready.notify_all();
-			} else {
-				while (gen == done_gen) cv_done.wait(lk);
-			}
-		}
+		run_barrier();
 	}
+}
+
+inline bool SyncThreadpoolEnv::start_barrier()
+{
+	std::unique_lock<std::mutex> lk(m_start);
+	while (!start)
+		cv_start.wait(lk);
+
+	if (finish)
+		return false;
+	return true;
+}
+
+inline void SyncThreadpoolEnv::run_barrier()
+{
+	std::unique_lock<std::mutex> lk(m_done);
+	size_t gen = run_gen;
+	if (--n_run == 0) {
+		start = false;
+		n_run = n_threads;
+		++run_gen;
+		cv_run.notify_all();
+		{ /* Notify owner */
+			std::unique_lock lr_ready(m_ready);
+			ready = true;
+		}
+		cv_ready.notify_all();
+		return;
+	}
+
+	while (gen == run_gen)
+		cv_run.wait(lk);
 }
 
 struct SyncThreadpool {
@@ -82,6 +83,11 @@ private:
 	struct SyncThreadpoolEnv env;
 	bool running = false; /* Track run/wait completion */
 public:
+	SyncThreadpool()
+	{
+		env.n_threads = 0;
+	}
+
 	void add_concurrency(uint32_t n_thr)
 	{
 		if (running)
@@ -92,6 +98,7 @@ public:
 				&SyncThreadpoolEnv::worker, &env, id));
 
 		env.n_threads += n_thr;
+		env.n_run = env.n_threads;
 	}
 
 	uint32_t get_concurrency()
@@ -118,6 +125,8 @@ public:
 
 	void run()
 	{
+		assert(env.n_threads);
+
 		if (running == true)
 			assert(!"Already running!");
 		running = true;
