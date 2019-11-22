@@ -50,7 +50,7 @@ inline float DotProd(Vec2 const &v1, Vec2 const &v2)
 	return accum;
 }
 
-inline float Lenght(Vec2 const &v)
+inline float Length(Vec2 const &v)
 {
 	return std::sqrt(DotProd(v, v));
 }
@@ -115,14 +115,14 @@ inline Vec3 CrossProd(Vec3 const &v1, Vec3 const &v2)
 		     v1.x * v2.y - v1.y * v2.x };
 }
 
-inline float Lenght(Vec3 const &v)
+inline float Length(Vec3 const &v)
 {
 	return std::sqrt(DotProd(v, v));
 }
 
 inline Vec3 Normalize(Vec3 const &v)
 {
-	float len = Lenght(v);
+	float len = Length(v);
 	Vec3 res;
 	for (int i = 0; i < 3; ++i)
 		res[i] = v[i] / len;

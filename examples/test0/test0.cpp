@@ -79,10 +79,10 @@ int main(int argc, char *argv[])
 	hgl_pipe.set_window(wnd);
 	hgl_pipe.set_sync_tp(&sync_tp);
 #endif
-
 	for (int i = 0; i < N_FRAMES; ++i) {
 		float const rotspd = 2 * 3.141593 / N_FRAMES;
 		Mat4 view = view0 * MakeMat4Rotate(Vec3{0,1,0}, (i+1) * rotspd);
+		auto const t0 = std::chrono::system_clock::now();
 #ifdef DRAW_SKY
 		tex_pipe.shader.set_view(view, sky.scale);
 		tex_pipe.Accumulate(sky.prim_buf);
@@ -93,6 +93,9 @@ int main(int argc, char *argv[])
 		hgl_pipe.Accumulate(a6m.prim_buf);
 		hgl_pipe.Render(&(fb.buf[0]));
 #endif
+		auto const t1 = std::chrono::system_clock::now();
+		std::chrono::duration<double, std::milli> const dt = t1 - t0;
+		std::cout << dt.count() << std::endl;
 #ifdef DRAWBACK
 		fb.Update();
 		//fb.Clear();

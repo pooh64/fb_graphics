@@ -215,8 +215,14 @@ int main(int argc, char *argv[])
 				std::sin(theta) };
 		pipe.shader.cam.pos = 1.5f * dir;
 
+		auto const t0 = std::chrono::system_clock::now();
+
 		pipe.Accumulate(prim_buf);
 		pipe.Render(&(fb.buf[0]));
+
+		auto const t1 = std::chrono::system_clock::now();
+		std::chrono::duration<double, std::milli> const dt = t1 - t0;
+		std::cout << dt.count() << std::endl;
 #ifdef DRAWBACK
 		fb.Update();
 		fb.Clear();
