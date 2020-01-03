@@ -8,3 +8,8 @@
 !makefile
 !*.mk
 !*.sh
+
+!*.obj
+!*.mtl
+!*.ppm
+!*.png

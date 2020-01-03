@@ -1,16 +1,4 @@
-#define HACK_TRINTERP_LINEAR
-#define HACK_TRSHADER_NO_BOUNDS
-//#define HACK_DRAWBIN_NO_DRAWBACK
-
-#define DRAW_SKY
-#define DRAW_A6M
-//#define N_THREADS 4
-#define N_THREADS std::thread::hardware_concurrency()
-#define DRAWBACK
-#define N_FRAMES 1000
-
-#define TILE_SIZE 16
-#define BIN_SIZE 4
+#include "conf.h"
 
 #include <include/fbuffer.h>
 #include <include/mouse.h>
@@ -29,15 +17,15 @@ struct Model {
 int main(int argc, char *argv[])
 {
 	Fbuffer fb;
-	if (fb.Init("/dev/fb0") < 0) {
-		perror("fb0");
+	if (fb.Init(DEV_FB_PATH) < 0) {
+		perror(DEV_FB_PATH);
 		return 1;
 	}
 	Model sky, a6m;
 
 	std::vector<Wfobj> obj_buf;
-	assert(!ImportWfobj("sky.obj", obj_buf));
-	assert(!ImportWfobj("A6M.obj", obj_buf));
+	assert(!ImportWfobj(SKY_OBJ_PATH, obj_buf));
+	assert(!ImportWfobj(A6M_OBJ_PATH, obj_buf));
 
 	obj_buf[0].get_prim_buf(sky.prim_buf);
 	obj_buf[1].get_prim_buf(a6m.prim_buf);
@@ -45,14 +33,14 @@ int main(int argc, char *argv[])
 	sky.tex = &obj_buf[0].mtl.tex_img;
 	a6m.tex = &obj_buf[1].mtl.tex_img;
 
-	sky.scale = 1000;
-	a6m.scale = 0.05;
+	sky.scale = SKY_SCALE;
+	a6m.scale = A6M_SCALE;
 
 	float z_avg = 1;
 	Window wnd = { .x = 0, .y = 0, .w = fb.xres, .h = fb.yres,
 	 	       .f = z_avg * 100, .n = z_avg / 100 };
 
-	Vec3 eye {0, 0, 1};
+	Vec3 eye EYE_POS;
 	Vec3 at  {0, 0, 0};
 	Vec3 up  {0, 1, 0};
 	Mat4 view0 = MakeMat4LookAt(eye, at, up);
@@ -79,10 +67,29 @@ int main(int argc, char *argv[])
 	hgl_pipe.set_window(wnd);
 	hgl_pipe.set_sync_tp(&sync_tp);
 #endif
+#ifdef MOUSE_ROTATE
+	Mouse ms;
+	Mouse::Event ms_event;
+	if (ms.Init("/dev/input/mice") < 0) {
+		perror("/dev/input/mice");
+		return 1;
+	}
+	float xrot = 0, yrot = 0;
+	while (1) {
+		float const rotspd = MOUSE_ROTSPD;
+		while (!ms.Poll(ms_event))
+			/* repeat */;
+		xrot += ms_event.dx * rotspd;
+		yrot += ms_event.dy * rotspd;
+		Mat4 view = MakeMat4Rotate(Vec3{0,1,0}, xrot * rotspd);
+		view      = MakeMat4Rotate(Vec3{1,0,0}, yrot * rotspd) * view;
+		view = view0 * view;
+#else
 	for (int i = 0; i < N_FRAMES; ++i) {
 		float const rotspd = 2 * 3.141593 / N_FRAMES;
 		Mat4 view = view0 * MakeMat4Rotate(Vec3{0,1,0}, (i+1) * rotspd);
 		auto const t0 = std::chrono::system_clock::now();
+#endif
 #ifdef DRAW_SKY
 		tex_pipe.shader.set_view(view, sky.scale);
 		tex_pipe.Accumulate(sky.prim_buf);
@@ -93,9 +100,11 @@ int main(int argc, char *argv[])
 		hgl_pipe.Accumulate(a6m.prim_buf);
 		hgl_pipe.Render(&(fb.buf[0]));
 #endif
+#ifndef MOUSE_ROTATE
 		auto const t1 = std::chrono::system_clock::now();
 		std::chrono::duration<double, std::milli> const dt = t1 - t0;
 		std::cout << dt.count() << std::endl;
+#endif
 #ifdef DRAWBACK
 		fb.Update();
 		//fb.Clear();

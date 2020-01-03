@@ -54,7 +54,7 @@ struct MyShader final : public Shader<Vec2, Vertex, Fbuffer::Color> {
 		Intersection const shadow =
 			FindIntersection({ pos, light }, sph, sph_size);
 		if (shadow.idx >= 0) {
-			return Fbuffer::Color{ uint8_t(255 * color.x * 0.3f),
+			return Fbuffer::Color{ uint8_t(255 * color.x * 0.8f),
 					       uint8_t(255 * color.y * 0.3f),
 					       uint8_t(255 * color.z * 0.3f),
 					       255 };

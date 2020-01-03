@@ -4,7 +4,8 @@
 
 struct Mouse {
 	struct Event {
-		uint8_t flags, dx, dy;
+		uint8_t flags;
+		int8_t dx, dy;
 
 		bool LeftButton() const noexcept
 		{
